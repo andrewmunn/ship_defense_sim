@@ -1,0 +1,15 @@
+import { chromium } from 'playwright';
+const t0 = Date.now();
+const browser = await chromium.launch({ headless: true, args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
+console.log('launch', Date.now() - t0);
+const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+page.on('console', (m) => console.log('console', Date.now() - t0, m.text()));
+await page.goto('http://localhost:8765/?dist=300', { waitUntil: 'load' });
+console.log('loaded', Date.now() - t0);
+await page.waitForFunction(() => window.__ready === true, null, { timeout: 120000 });
+console.log('ready', Date.now() - t0);
+const fps = await page.evaluate(() => new Promise((r) => { let n = 0; const s = performance.now(); const f = () => { if (++n === 30) r(30000 / (performance.now() - s)); else requestAnimationFrame(f); }; requestAnimationFrame(f); }));
+console.log('fps', fps);
+const t1 = Date.now(); await page.screenshot({ path: "shots/dev/timing.png" }); console.log("shot", Date.now() - t1);
+const t2 = Date.now(); const b64 = await page.evaluate(() => document.querySelector("canvas").toDataURL("image/png").length); console.log("dataurl", Date.now() - t2, b64);
+await browser.close();

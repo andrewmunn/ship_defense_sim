@@ -1,0 +1,22 @@
+{
+  "name": "ship_defense_sim",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 8765 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "shot": "node tools/shot.mjs"
+  },
+  "dependencies": {
+    "postprocessing": "^6.39.5",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "playwright": "*",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  }
+}

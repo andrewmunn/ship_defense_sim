@@ -1,0 +1,7 @@
+node_modules
+dist
+.venv
+.DS_Store
+shots/
+tools/audio_work/
+__pycache__/

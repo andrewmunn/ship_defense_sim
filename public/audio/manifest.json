@@ -1,0 +1,399 @@
+{
+ "sampleRate": 48000,
+ "format": "Ogg Vorbis",
+ "levels": "One-shots peak-normalized to -1 dBFS (decoded) and trimmed to start at the transient; loops ~-20 LUFS integrated (ciws_servo -24) and seamless (sample-exact wrap). ciws_spinup / ciws_fire_loop / ciws_tail share one gain so they splice.",
+ "sounds": {
+  "ciws_fire_loop": {
+   "file": "ciws_fire_loop.ogg",
+   "loop": true,
+   "duration": 2.994,
+   "channels": 1,
+   "desc": "Close (~20 m) CIWS firing at 4,528 rpm: 226 rounds at an exact 636-sample period, seamless 2.995 s loop. Play ciws_spinup, start this loop exactly at spinup end, stop it and start ciws_tail at the same instant.",
+   "source": "bainbridge.webm (USS Bainbridge CIWS PACFIRE, US Navy, PD): real per-shot grains; synthesized gas/thump/mechanism/motor layers"
+  },
+  "ciws_spinup": {
+   "file": "ciws_spinup.ogg",
+   "loop": false,
+   "duration": 0.427,
+   "channels": 1,
+   "desc": "Gun drive wind-up (0.14 s) plus the first rounds accelerating to full rate. Ends exactly one shot period after its last round, so ciws_fire_loop starts at the end of this buffer. Same gain as the loop.",
+   "source": "bainbridge.webm (USS Bainbridge CIWS PACFIRE, US Navy, PD): real per-shot grains; synthesized gas/thump/mechanism/motor layers"
+  },
+  "ciws_tail": {
+   "file": "ciws_tail.ogg",
+   "loop": false,
+   "duration": 2.9,
+   "channels": 1,
+   "desc": "End of burst: decelerating last rounds, drive spin-down and brake clack, then ~2.5 s of rolling outdoor echo (real Navy recording + synthetic diffuse reverb). Same gain as the loop.",
+   "source": "bainbridge.webm (USS Bainbridge CIWS PACFIRE, US Navy, PD): real per-shot grains; synthesized gas/thump/mechanism/motor layers; usn_ciws.webm (US Navy CIWS System firing, PD): real outdoor echo tail after a burst"
+  },
+  "ciws_distant_loop": {
+   "file": "ciws_distant_loop.ogg",
+   "loop": true,
+   "duration": 2.994,
+   "channels": 1,
+   "desc": "The same burst heard from 1-3 km: top end gone, 75 Hz 'BRRRT' growl and low harmonics, sea-surface reflection, diffuse echo; 2.995 s seamless loop, phase-compatible with ciws_fire_loop.",
+   "source": "bainbridge.webm (USS Bainbridge CIWS PACFIRE, US Navy, PD): real per-shot grains; synthesized gas/thump/mechanism/motor layers"
+  },
+  "ciws_servo": {
+   "file": "ciws_servo.ogg",
+   "loop": true,
+   "duration": 1.0,
+   "channels": 1,
+   "desc": "(extra) Mount slew servo/hydraulic whine, 1.0 s loop; drive gain and playbackRate (0.8-1.3) from slew rate.",
+   "source": "synth"
+  },
+  "gun_5in": {
+   "file": "gun_5in_1.ogg",
+   "loop": false,
+   "duration": 3.4,
+   "channels": 1,
+   "variants": [
+    "gun_5in_1.ogg",
+    "gun_5in_2.ogg",
+    "gun_5in_3.ogg"
+   ],
+   "variant_durations": [
+    3.4,
+    3.4,
+    3.4
+   ],
+   "desc": "Close 5-inch round (~20-60 m): sharp report, pressure thump, reverb tail over the water, ~3.3 s (one firing cycle at 18-20 rds/min).",
+   "source": "dvids_937504.mp4 / dvids_836211.mp4 (USS Dewey Mk 45 firing, US Navy, PD) + synthesized shock/thump/sub, case-ejection clatter, synthetic over-water IR"
+  },
+  "gun_5in_distant": {
+   "file": "gun_5in_distant.ogg",
+   "loop": false,
+   "duration": 5.673,
+   "channels": 1,
+   "desc": "5-inch gun heard at 5-20 km: soft-edged deep boom, rolling low tail, nothing above ~1 kHz.",
+   "source": "synth + dvids_937504.mp4 (texture, heavily low-passed)"
+  },
+  "vls_launch": {
+   "file": "vls_launch_1.ogg",
+   "loop": false,
+   "duration": 8.5,
+   "channels": 2,
+   "variants": [
+    "vls_launch_1.ogg",
+    "vls_launch_2.ogg"
+   ],
+   "variant_durations": [
+    8.5,
+    8.5
+   ],
+   "desc": "Close VLS launch heard from the bridge wing: ignition blast + uptake exhaust vent, roaring motor rising past, then receding and dropping in pitch as the missile climbs away; stereo, ~8.5 s. Starts at ignition (t=0).",
+   "source": "austin_sm2.webm / porter_sm2.webm (SM-2 launches, USS Oscar Austin / USS Porter, US Navy, PD), Freesound 515123 (rocket thrust, CC0), synthesized ignition blast, uptake vent, motor roar/crackle; physically rendered climb-out (doppler, 1/r, air absorption, sea reflection)"
+  },
+  "vls_launch_distant": {
+   "file": "vls_launch_distant.ogg",
+   "loop": false,
+   "duration": 9.477,
+   "channels": 2,
+   "desc": "A VLS launch from another ship ~4 km away: dull boom, then a distant low roar that swells and fades as the missile climbs; stereo, ~9 s.",
+   "source": "synth motor + Freesound 515123 (CC0), rendered at ~4 km"
+  },
+  "rocket_motor_loop": {
+   "file": "rocket_motor_loop.ogg",
+   "loop": true,
+   "duration": 4.0,
+   "channels": 1,
+   "desc": "Close rocket-motor roar with shock crackle for missiles in flight; 4 s seamless loop. Engine applies distance/doppler.",
+   "source": "synth (periodic roar/crackle/rumble) + Freesound 515123 (CC0), crossfaded"
+  },
+  "jet_asm_loop": {
+   "file": "jet_asm_loop.ogg",
+   "loop": true,
+   "duration": 3.0,
+   "channels": 1,
+   "desc": "Small turbojet of a subsonic sea-skimming cruise missile: high compressor whine, buzz and jet roar; 3 s seamless loop.",
+   "source": "synth (turbine tones, jet mixing noise) + Freesound 477132 (jet engine, CC0) pitched up"
+  },
+  "ramjet_loop": {
+   "file": "ramjet_loop.ogg",
+   "loop": true,
+   "duration": 3.0,
+   "channels": 1,
+   "desc": "Harsh supersonic ramjet: tearing broadband roar, combustion buzz, crackle; 3 s seamless loop.",
+   "source": "synth (roar, 141 Hz combustion buzz, tearing HF, crackle) + Freesound 515122 (CC0)"
+  },
+  "missile_flyby": {
+   "file": "missile_flyby_1.ogg",
+   "loop": false,
+   "duration": 3.6,
+   "channels": 2,
+   "variants": [
+    "missile_flyby_1.ogg",
+    "missile_flyby_2.ogg"
+   ],
+   "variant_durations": [
+    3.6,
+    3.6
+   ],
+   "desc": "Pre-rendered close pass of a missile (1: subsonic turbojet sea-skimmer at 285 m/s, 22 m abeam; 2: rocket-powered missile at 310 m/s, 35 m): doppler whoosh-roar with sea-reflection phasing, stereo left->right, 3.6 s, closest approach heard at 1.5 s. Play without engine doppler (it is baked in).",
+   "source": "jet_asm_loop / synth rocket motor + Freesound 515123 (CC0), physically rendered pass"
+  },
+  "sonic_boom": {
+   "file": "sonic_boom.ogg",
+   "loop": false,
+   "duration": 1.25,
+   "channels": 1,
+   "desc": "Supersonic missile passing: sharp N-wave double crack (bow/tail shocks) followed by the sea-reflected N-wave ~30 ms later, short rumbling tail; ~1.5 s.",
+   "source": "synth (N-waves, sea-surface reflection, diffuse tail)"
+  },
+  "chaff_launch": {
+   "file": "chaff_launch.ogg",
+   "loop": false,
+   "duration": 2.864,
+   "channels": 1,
+   "desc": "Decoy launcher firing a chaff/decoy round: hollow mortar thump, whoosh of the round leaving and receding, faint burst pop ~2 s later; ~3 s.",
+   "source": "synth (mortar blast, tube resonance, rocket whoosh, burst pop) + Freesound 187767 (CC0)"
+  },
+  "explosion_ship_hit": {
+   "file": "explosion_ship_hit.ogg",
+   "loop": false,
+   "duration": 8.362,
+   "channels": 1,
+   "desc": "Anti-ship missile warhead hitting our own ship: penetration crunch, huge detonation, hull ringing, tearing plates, debris raining on deck, secondary cook-offs and fireball; ~9 s.",
+   "source": "synth blast/hull modes/tearing + Freesound 703247, 550342, 569555, 496836, 698209, 262436 (CC0)"
+  },
+  "splash_small": {
+   "file": "splash_small_1.ogg",
+   "loop": false,
+   "duration": 1.0,
+   "channels": 1,
+   "variants": [
+    "splash_small_1.ogg",
+    "splash_small_2.ogg",
+    "splash_small_3.ogg"
+   ],
+   "variant_durations": [
+    0.991,
+    0.839,
+    1.0
+   ],
+   "desc": "A round or fragment hitting the water: sharp entry 'tsip', small spout, droplets; ~1 s.",
+   "source": "Freesound 50623 (CC0) stone splashes + synth bubbles/spray"
+  },
+  "debris_metal": {
+   "file": "debris_metal_1.ogg",
+   "loop": false,
+   "duration": 2.397,
+   "channels": 1,
+   "variants": [
+    "debris_metal_1.ogg",
+    "debris_metal_2.ogg",
+    "debris_metal_3.ogg"
+   ],
+   "variant_durations": [
+    2.324,
+    2.384,
+    2.397
+   ],
+   "desc": "Fragments/debris hitting steel deck and superstructure: clang, bounces, small rattle; ~2 s.",
+   "source": "Freesound 569555, 264889 (CC0) metal impacts/rattle, pitched & layered"
+  },
+  "explosion_near": {
+   "file": "explosion_near_1.ogg",
+   "loop": false,
+   "duration": 6.0,
+   "channels": 1,
+   "variants": [
+    "explosion_near_1.ogg",
+    "explosion_near_2.ogg",
+    "explosion_near_3.ogg"
+   ],
+   "variant_durations": [
+    6.0,
+    6.0,
+    6.0
+   ],
+   "desc": "Warhead detonation 100-500 m away: crack, fireball body, fragments whizzing and splashing, rolling tail; ~5-6 s.",
+   "source": "Freesound 235968 / 262436 (CC0) real explosions + synth blast, fragment whizz, fragments splashing into the sea, rolling tail, synthetic outdoor IR"
+  },
+  "explosion_far": {
+   "file": "explosion_far_1.ogg",
+   "loop": false,
+   "duration": 7.5,
+   "channels": 1,
+   "variants": [
+    "explosion_far_1.ogg",
+    "explosion_far_2.ogg"
+   ],
+   "variant_durations": [
+    7.5,
+    7.362
+   ],
+   "desc": "Explosion 5-20 km away: deep dull boom, low rolling rumble, no high end; ~7 s.",
+   "source": "Freesound 320788 (Kostrava, distant explosions, CC0) + synth sub boom/rolling tail"
+  },
+  "explosion_air": {
+   "file": "explosion_air_1.ogg",
+   "loop": false,
+   "duration": 7.0,
+   "channels": 1,
+   "variants": [
+    "explosion_air_1.ogg",
+    "explosion_air_2.ogg"
+   ],
+   "variant_durations": [
+    7.0,
+    7.0
+   ],
+   "desc": "Proximity-fuzed airburst of an interceptor warhead a few hundred m up: very sharp crack, then rolling thunder-like echo; ~6-7 s.",
+   "source": "synth crack/body/rolling tail + Freesound 194364 (thunder, Dave Welsh, CC0)"
+  },
+  "splash_big": {
+   "file": "splash_big.ogg",
+   "loop": false,
+   "duration": 4.5,
+   "channels": 1,
+   "desc": "A missile or large piece of wreckage slamming into the sea: heavy slap/thump, water sheet and spray, column collapsing back as a downpour; ~4 s.",
+   "source": "Freesound 442773, 316744, 529794 (CC0) splashes + synth impact thump, bubbles, fall-back"
+  },
+  "metal_groan": {
+   "file": "metal_groan_1.ogg",
+   "loop": false,
+   "duration": 7.0,
+   "channels": 1,
+   "variants": [
+    "metal_groan_1.ogg",
+    "metal_groan_2.ogg"
+   ],
+   "variant_durations": [
+    7.0,
+    7.0
+   ],
+   "desc": "Deep structural groan/creak of a stressed, sinking hull; ~7 s, soft attack (ambient one-shot).",
+   "source": "Freesound 675486, 496836, 556714 (CC0) pitched down + synth hull resonances"
+  },
+  "ocean_loop": {
+   "file": "ocean_loop.ogg",
+   "loop": true,
+   "duration": 40.0,
+   "channels": 2,
+   "desc": "Open-ocean waves heard from the deck: irregular swell wash, whitecap hiss, low swell rumble, a little slap against the hull; stereo 40 s seamless loop.",
+   "source": "synth open-sea wave wash + Freesound 551436 (waves against a ship's bow), 167684 (wind, low-passed) (CC0)"
+  },
+  "hull_wash_loop": {
+   "file": "hull_wash_loop.ogg",
+   "loop": true,
+   "duration": 30.0,
+   "channels": 2,
+   "desc": "Water rushing along a steel hull at 15-20 kt heard from the deck edge: continuous wash, gurgle and slap, low rush; stereo 30 s seamless loop.",
+   "source": "Freesound 360631 (bow wave, close), 570927 (metal barge bow) (CC0) + synth low rush"
+  },
+  "wind_loop": {
+   "file": "wind_loop.ogg",
+   "loop": true,
+   "duration": 30.0,
+   "channels": 2,
+   "desc": "Strong sea wind on deck: gusting body, rigging/antenna whistles following the gusts, low buffeting; stereo 30 s seamless loop.",
+   "source": "synth gusts/whistle/buffeting + Freesound 167684 (strong wind, CC0)"
+  },
+  "ship_engine_loop": {
+   "file": "ship_engine_loop.ogg",
+   "loop": true,
+   "duration": 30.0,
+   "channels": 2,
+   "desc": "Warship machinery heard on deck: gas turbine intake/uptake roar and compressor whine, ventilation fans, electrical hum, drone through the deck; stereo 30 s seamless loop.",
+   "source": "synth gas-turbine roar/whine, vent fans, 60 Hz hum, hull ticks + Freesound 398851, 74915 (ferry below-deck / engine room, CC0) low-passed"
+  },
+  "fire_loop": {
+   "file": "fire_loop.ogg",
+   "loop": true,
+   "duration": 30.0,
+   "channels": 2,
+   "desc": "Large fire burning on deck: roaring flames, hiss, crackle and pops, low breathing roar; stereo 30 s seamless loop.",
+   "source": "Freesound 698209 (large fire roar), 563765 (car fire), 181562 (crackling) (CC0) + synth low roar"
+  },
+  "alarm_gq": {
+   "file": "alarm_gq.ogg",
+   "loop": false,
+   "duration": 6.345,
+   "channels": 2,
+   "desc": "General Quarters alarm: the rapid repeating electro-mechanical 'bong-bong-bong' gong through the 1MC shipboard loudspeakers (horn band-limit, overdrive, slap echoes, steel reverb); stereo, ~6 s.",
+   "source": "synth (inharmonic gong partials, 1MC loudspeaker chain, ship reverb)"
+  },
+  "alarm_klaxon": {
+   "file": "alarm_klaxon.ogg",
+   "loop": false,
+   "duration": 3.231,
+   "channels": 2,
+   "desc": "'Brace for impact' / collision alarm: urgent rapid high buzzer pulses over the 1MC; stereo, ~3 s.",
+   "source": "synth (pulsed harsh two-tone buzzer, 1MC loudspeaker chain)"
+  },
+  "ui_click": {
+   "file": "ui_click.ogg",
+   "loop": false,
+   "duration": 0.06,
+   "channels": 1,
+   "desc": "Console button click (switch press + release), 60 ms.",
+   "source": "synth"
+  },
+  "ui_track_new": {
+   "file": "ui_track_new.ogg",
+   "loop": false,
+   "duration": 0.425,
+   "channels": 1,
+   "desc": "New radar track: soft two-note rising sonar-like blip, ~0.4 s.",
+   "source": "synth"
+  },
+  "ui_alert": {
+   "file": "ui_alert.ogg",
+   "loop": false,
+   "duration": 0.662,
+   "channels": 1,
+   "desc": "VAMPIRE / inbound missile alert: three urgent bright beeps with a harsh edge, ~0.7 s (retrigger to repeat).",
+   "source": "synth"
+  },
+  "ui_kill": {
+   "file": "ui_kill.ogg",
+   "loop": false,
+   "duration": 0.454,
+   "channels": 1,
+   "desc": "Confirmed kill: quick bright ascending three-note chirp, ~0.45 s.",
+   "source": "synth"
+  },
+  "ui_warn": {
+   "file": "ui_warn.ogg",
+   "loop": false,
+   "duration": 0.708,
+   "channels": 1,
+   "desc": "Caution/warning: two low alternating tones (down-step), ~0.55 s.",
+   "source": "synth"
+  }
+ },
+ "credits": [
+  "All sounds produced by tools/audio/build_bank.py (numpy/scipy DSP): synthesized, or hybrids layering synthesis with the public-domain / CC0 recordings below.",
+  "U.S. Navy / DoD video (public domain, 17 U.S.C. 105; no endorsement implied): 'USS Bainbridge Conducts a CWIS Pre-Action Calibration' (DVIDS 1000563, via Wikimedia Commons); 'US Navy CIWS System firing' (Wikimedia Commons); 'USS Oscar Austin (DDG-79) Completes an SM-2 Engagement ... Formidable Shield 2023' (Lt.j.g. Thomas McGowan, via Wikimedia Commons); 'USS Porter SM-2 launch Formidable Shield 2023' (230520-N-NQ285-2004, via Wikimedia Commons); 'USS Dewey Fires 5-Inch Gun During Live-Fire Exercise in the Philippine Sea' (DVIDS 937504); 'USS Dewey Fires 5-inch Gun' (DVIDS 836211).",
+  "Freesound #50623: \"water_splash_10shots.wav by vibe_crc\" (https://freesound.org/people/vibe_crc/sounds/50623/), license CC0 1.0",
+  "Freesound #74915: \"ferry engine room2.wav by mrmayo\" (https://freesound.org/people/mrmayo/sounds/74915/), license CC0 1.0",
+  "Freesound #167684: \"Strong wind blowing in the plain in Anatolia (Turkey) by felix.blume\" (https://freesound.org/people/felix.blume/sounds/167684/), license CC0 1.0",
+  "Freesound #181562: \"Fire Crackling 02.wav by kingsrow\" (https://freesound.org/people/kingsrow/sounds/181562/), license CC0 1.0",
+  "Freesound #187767: \"Cannon Shot by qubodup\" (https://freesound.org/people/qubodup/sounds/187767/), license CC0 1.0",
+  "Freesound #194364: \"Thunder Clap OWB KY 441x16.wav by Dave Welsh\" (https://freesound.org/people/Dave%20Welsh/sounds/194364/), license CC0 1.0",
+  "Freesound #235968: \"Explosion_01.wav by tommccann\" (https://freesound.org/people/tommccann/sounds/235968/), license CC0 1.0",
+  "Freesound #262436: \"Real explosions Real gunshots.wav by The_Sound_Side\" (https://freesound.org/people/The_Sound_Side/sounds/262436/), license CC0 1.0",
+  "Freesound #264889: \"SFX Metal Shed Door - Hits, Clangs, Rattle by EpicWizard\" (https://freesound.org/people/EpicWizard/sounds/264889/), license CC0 1.0",
+  "Freesound #316744: \"Big Splash.wav by Bird_man\" (https://freesound.org/people/Bird_man/sounds/316744/), license CC0 1.0",
+  "Freesound #320788: \"distant explosions by Kostrava\" (https://freesound.org/people/Kostrava/sounds/320788/), license CC0 1.0",
+  "Freesound #360631: \"Sailing boat, bow wave (close perspective) by Pfannkuchn\" (https://freesound.org/people/Pfannkuchn/sounds/360631/), license CC0 1.0",
+  "Freesound #398851: \"170722_MediumFerry_BelowDeck_R.wav by blaukreuz\" (https://freesound.org/people/blaukreuz/sounds/398851/), license CC0 1.0",
+  "Freesound #442773: \"Big Water Splash by qubodup\" (https://freesound.org/people/qubodup/sounds/442773/), license CC0 1.0",
+  "Freesound #477132: \"propulsion jet engine by mycompasstv\" (https://freesound.org/people/mycompasstv/sounds/477132/), license CC0 1.0",
+  "Freesound #496836: \"Metallic Groan by hinchinbrook\" (https://freesound.org/people/hinchinbrook/sounds/496836/), license CC0 1.0",
+  "Freesound #515122: \"Rocket Thrust 02 by LilMati\" (https://freesound.org/people/LilMati/sounds/515122/), license CC0 1.0",
+  "Freesound #515123: \"Rocket Thrust 01 by LilMati\" (https://freesound.org/people/LilMati/sounds/515123/), license CC0 1.0",
+  "Freesound #529794: \"5 meters dive.wav by bruno.auzet\" (https://freesound.org/people/bruno.auzet/sounds/529794/), license CC0 1.0",
+  "Freesound #550342: \"Foley_Stones_Falls_Debris_Stereo_DR05.wav by Nox_Sound\" (https://freesound.org/people/Nox_Sound/sounds/550342/), license CC0 1.0",
+  "Freesound #551436: \"Choppy waves against a ship's bow by tiennotg\" (https://freesound.org/people/tiennotg/sounds/551436/), license CC0 1.0",
+  "Freesound #556714: \"Bending Metal by NachtmahrTV\" (https://freesound.org/people/NachtmahrTV/sounds/556714/), license CC0 1.0",
+  "Freesound #563765: \"Fire Auto - car on fire by florianreichelt\" (https://freesound.org/people/florianreichelt/sounds/563765/), license CC0 1.0",
+  "Freesound #569555: \"Foley_Impact_Metal_Long_Mono.wav by Nox_Sound\" (https://freesound.org/people/Nox_Sound/sounds/569555/), license CC0 1.0",
+  "Freesound #570927: \"metallic barge bow.wav by bruno.auzet\" (https://freesound.org/people/bruno.auzet/sounds/570927/), license CC0 1.0",
+  "Freesound #675486: \"S35-22 Steel girders wrench and tear; creaking metal.wav by craigsmith\" (https://freesound.org/people/craigsmith/sounds/675486/), license CC0 1.0",
+  "Freesound #698209: \"Fire Large Roar And Hiss With Crackles.mp3 by theoneandtruelybitch\" (https://freesound.org/people/theoneandtruelybitch/sounds/698209/), license CC0 1.0",
+  "Freesound #703247: \"Big falling debris (crash) by xkeril\" (https://freesound.org/people/xkeril/sounds/703247/), license CC0 1.0"
+ ]
+}
