@@ -280,6 +280,8 @@ export class Hud {
     const mode = this.hooks.camMode?.() ?? g.rig.mode;
     $('#camchip', this.root).innerHTML = mode === 'cinematic'
       ? `<span>CAM <b>CINEMATIC</b> · <b>${name}</b> · drag / scroll to take control · C toggles</span>`
+      : mode === 'look' && g.rig.glancing
+        ? `<span>CAM <b>GLANCE</b> · <b>${name}</b> · release to look back</span>`
       : mode === 'look'
         ? `<span>CAM <b>LOOK</b> · riding with <b>${name}</b> · drag to look · WASD/E/Q drift · Z back to orbit</span>`
         : `<span>CAM <b>${mode}</b> · <b>${name}</b> · V cycles views · Z look around · C cinematic · H help</span>`;

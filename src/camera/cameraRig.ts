@@ -72,6 +72,8 @@ export class CameraRig {
   private lookOffset = new THREE.Vector3();
   private lookTurns = false;
   private lookHeading = 0;
+  /** A glance (Alt+drag) in progress: the view to swing back to when the button is released. */
+  private glance: { mode: CamMode; yaw: number; pitch: number; dist: number; fov: number; chaseYawOffset: number } | null = null;
   keys = new Set<string>();
   /** Shake amplitude (decays). */
   private shake = 0;
@@ -146,9 +148,34 @@ export class CameraRig {
     this.pitch = this.pitchGoal = Math.asin(THREE.MathUtils.clamp(f.dot(_u), -1, 1));
     this.freeVel.set(0, 0, 0);
   }
+  /** True while an Alt+drag glance is held (the view returns when the button is released). */
+  get glancing() {
+    return this.glance !== null && this.mode === 'look';
+  }
+  /** Alt+drag: look around from the current orbit / chase spot until the button is released. */
+  private startGlance(t: Trackable) {
+    this.glance = { mode: this.mode, yaw: this.yawGoal, pitch: this.pitchGoal, dist: this.distGoal, fov: this.fovGoal, chaseYawOffset: this.chaseYawOffset };
+    this.setLook(t);
+  }
+  /** Glance released: swing back to the orbit / chase view it started from. */
+  private endGlance() {
+    const g = this.glance, t = this.target;
+    this.glance = null;
+    if (!g || this.mode !== 'look' || !t) return;
+    this.startBlend();
+    this.mode = g.mode;
+    this.yaw = this.yawGoal = g.yaw;
+    this.pitch = this.pitchGoal = g.pitch;
+    this.dist = this.distGoal = g.dist;
+    this.fovGoal = g.fov;
+    this.chaseYawOffset = g.chaseYawOffset;
+    this.focus.copy(t.pos);
+    this.focusGoal.copy(t.pos);
+  }
   /** Leave look mode: orbit the target again from wherever the camera now is. */
   endLook() {
     const t = this.target;
+    this.glance = null;
     if (this.mode !== 'look' || !t) return;
     this.startBlend();
     this.mode = 'orbit';
@@ -208,18 +235,22 @@ export class CameraRig {
       lx = e.clientX; ly = e.clientY;
       el.setPointerCapture(e.pointerId);
     });
-    el.addEventListener('pointerup', (e) => {
+    const release = (e: PointerEvent) => {
       dragging = 0;
-      el.releasePointerCapture(e.pointerId);
-    });
+      if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+      if (this.glance) this.endGlance();
+    };
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
     el.addEventListener('pointermove', (e) => {
       if (!dragging) return;
       const dx = e.clientX - lx, dy = e.clientY - ly;
       lx = e.clientX; ly = e.clientY;
       if (Math.abs(dx) + Math.abs(dy) > 0) this.onUserInput();
       const fovK = this.camera.fov / 50;
-      // Alt+drag while following, or any drag in a mount view: look around, riding along with it
-      if (altDrag && (this.mode === 'orbit' || this.mode === 'chase') && this.target?.alive) this.setLook(this.target);
+      // Alt+drag while following: glance around until released. Any drag in a mount view: look
+      // around, riding along with it.
+      if (altDrag && (this.mode === 'orbit' || this.mode === 'chase') && this.target?.alive) this.startGlance(this.target);
       if (this.mode === 'fixed' && dragging === 1) {
         const a = this.fixed?.anchor;
         if (a?.alive) this.setLook(a, true);
