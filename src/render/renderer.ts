@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { SceneDepth, AOEffect } from './sceneDepth';
-import { GradeEffect, FlareEffect } from './post';
+import { GradeEffect, FlareEffect, SanitizeEffect } from './post';
 import { EffectComposer, RenderPass, EffectPass, BloomEffect, ToneMappingEffect, ToneMappingMode, VignetteEffect, SMAAEffect, NoiseEffect, BlendFunction, ChromaticAberrationEffect } from 'postprocessing';
 
 export class Renderer {
@@ -51,7 +51,7 @@ export class Renderer {
     this.toneMapping = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
     this.sceneDepth = new SceneDepth(this.renderer);
     this.ao = new AOEffect(this.sceneDepth.aoRT.texture);
-    this.composer.addPass(new EffectPass(camera, this.ao));
+    this.composer.addPass(new EffectPass(camera, new SanitizeEffect(), this.ao));
     const vignette = new VignetteEffect({ offset: 0.32, darkness: 0.5 });
     const noise = new NoiseEffect({ blendFunction: BlendFunction.OVERLAY, premultiply: false });
     noise.blendMode.opacity.value = 0.025;

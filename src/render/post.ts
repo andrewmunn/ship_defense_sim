@@ -1,6 +1,29 @@
 import * as THREE from 'three';
 import { Effect, BlendFunction } from 'postprocessing';
 
+/**
+ * Guards the HDR buffer before bloom: clamps to a finite ceiling and zeroes NaNs. A single Inf/NaN
+ * pixel (e.g. a blast light right against the hull overflowing half float) otherwise turns into NaN in
+ * the effect blends (mix(Inf, x) = Inf - Inf), spreads through the bloom mip chain and blacks out the
+ * entire frame. Must be the first effect after the scene render.
+ */
+export class SanitizeEffect extends Effect {
+  constructor(max = 32000) {
+    super('SanitizeEffect', /* glsl */ `
+      uniform float uMax;
+      void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor){
+        vec3 c = inputColor.rgb;
+        // isnan plus a comparison test (NaN fails every comparison) in case isnan gets optimised away
+        bool bad = any(isnan(c)) || !(c.r + c.g + c.b > -1.0);
+        outputColor = vec4(bad ? vec3(0.0) : clamp(c, 0.0, uMax), inputColor.a);
+      }`, {
+      // SET, not NORMAL: NORMAL blends mix(input, output), which is itself NaN when the input is Inf
+      blendFunction: BlendFunction.SET,
+      uniforms: new Map<string, THREE.Uniform>([['uMax', new THREE.Uniform(max)]]),
+    });
+  }
+}
+
 /** Filmic grade after tone mapping: split-tone (cool shadows / warm highlights), gentle S-curve, saturation. */
 export class GradeEffect extends Effect {
   constructor() {

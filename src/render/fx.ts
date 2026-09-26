@@ -172,7 +172,13 @@ export class Fx {
           this.spawn({ pos: _v.copy(pos).add(rv(5)), vel: sphereDir(up, 1.2, _d).multiplyScalar(8 + rng.next() * 18), life: 35 + rng.next() * 25, size0: 8, size1: 55 * k, drag: 0.9, rise: 4, color: [0.07, 0.065, 0.06], alpha: 0.92, type: PT.SMOKE, delay: 0.2 + rng.next() * 0.6 });
         for (let i = 0; i < 200; i++)
           this.spawn({ pos: pos.clone(), vel: sphereDir(up, 0.6, _d).multiplyScalar(60 + rng.next() * 260), life: 1 + rng.next() * 2.5, size0: 0.5, size1: 0.2, drag: 0.8, gravity: 9.8, color: [1, 0.7, 0.4], alpha: 8, type: PT.SPARK });
-        this.addFlash(pos, [1, 0.55, 0.25], 5e5 * k, 2500, 1.2);
+        // Hang the light a few metres off the hull, out and up from the hit. Right on the plating the
+        // point light's 1/d² (capped at 100×) drives the hull past the half-float HDR range → Inf,
+        // which the post chain turns into NaN and bloom smears over the whole frame (black screen).
+        const out = _d.copy(pos).sub(this.world.ship.pos);
+        out.addScaledVector(up, -out.dot(up));
+        if (out.lengthSq() > 1e-6) out.normalize();
+        this.addFlash(_v.copy(pos).addScaledVector(out, 4).addScaledVector(up, 3), [1, 0.55, 0.25], 5e5 * k, 2500, 1.2);
         this.waterSurge(pos, 25, 0.7);
         break;
       }
