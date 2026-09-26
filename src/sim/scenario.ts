@@ -89,8 +89,8 @@ export const PRESETS: ScenarioConfig[] = [
   {
     ...base(),
     name: 'Saturation (TOT)',
-    desc: '24 missiles timed to arrive together from four axes. Can Bastion keep up?',
-    waves: [W(170, 'asm_subsonic', 16, 0.7, 4, 70), W(172, 'asm_supersonic', 6, 1, 3, 50), W(175, 'asm_heavy', 2, 2, 1, 10)],
+    desc: '32 missiles timed to arrive together from four axes. Can Bastion keep up?',
+    waves: [W(170, 'asm_subsonic', 12, 0.7, 4, 70), W(172, 'asm_supersonic', 12, 1, 3, 50), W(175, 'asm_heavy', 8, 2, 1, 10)],
   },
   {
     ...base(),

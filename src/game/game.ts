@@ -85,7 +85,7 @@ export class Game {
     scene.add(this.worldGroup);
     scene.add(this.particles.mesh, this.glows.mesh, this.streaks.mesh, this.clouds.mesh);
     const P = new URLSearchParams(location.search);
-    const preset = PRESETS.find((p) => p.name.toLowerCase().replace(/[^a-z]/g, '') === (P.get('scenario') ?? '').toLowerCase().replace(/[^a-z]/g, '')) ?? PRESETS[2];
+    const preset = PRESETS.find((p) => p.name.toLowerCase().replace(/[^a-z]/g, '') === (P.get('scenario') ?? '').toLowerCase().replace(/[^a-z]/g, '')) ?? PRESETS.find((p) => p.name === 'Saturation (TOT)')!;
     this.cfg = cloneScenario(preset);
     this.restart(this.cfg);
     this.rig.cut({ focus: this.world.ship.pos.clone().add(new THREE.Vector3(0, 8, 0)), yaw: 2.4, pitch: 0.16, dist: 260 });
