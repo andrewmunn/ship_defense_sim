@@ -10,16 +10,27 @@ function el<T extends HTMLElement = HTMLElement>(html: string) {
 
 const THREAT_TYPES = Object.keys(THREATS) as ThreatType[];
 
-/** Scenario editor: presets + every tunable (raid waves, loadout, doctrine, environment). */
+const CUSTOM_KEY = 'vanguard.setup.customOpen';
+
+/**
+ * Scenario picker: the presets and a big Commence button, with every tunable (raid waves, loadout,
+ * doctrine, environment) tucked into a Customize drawer below.
+ */
 export class SetupDialog {
   root: HTMLElement;
   private cfg: ScenarioConfig;
   private presetIdx = -1;
+  private customOpen = false;
   onClose: () => void = () => {};
 
   constructor(private game: Game) {
     this.cfg = cloneScenario(game.cfg);
-    this.root = el(`<div class="modal" id="setup"><div class="box"><h2>SCENARIO <small>tune the raid · Esc to close</small></h2><div class="inner"></div></div></div>`);
+    this.root = el(`<div class="modal" id="setup"><div class="box"><h2>SCENARIO <small>choose a raid · Esc to close</small></h2><div class="inner"></div></div></div>`);
+    try {
+      this.customOpen = localStorage.getItem(CUSTOM_KEY) === '1';
+    } catch {
+      /* storage unavailable: start collapsed */
+    }
     document.body.appendChild(this.root);
     this.root.addEventListener('pointerdown', (e) => { if (e.target === this.root) this.close(); });
   }
@@ -29,6 +40,7 @@ export class SetupDialog {
     this.presetIdx = PRESETS.findIndex((p) => p.name === this.cfg.name);
     this.render();
     this.root.classList.add('show');
+    this.root.querySelector<HTMLButtonElement>('.commence')?.focus({ preventScroll: true });
   }
   close() {
     this.root.classList.remove('show');
@@ -43,9 +55,18 @@ export class SetupDialog {
     const inner = this.root.querySelector('.inner')!;
     const cells = Math.ceil(c.loadout.stiletto / INTERCEPTORS.stiletto.perCell) + c.loadout.halberd + c.loadout.glaive;
     inner.innerHTML = `
-      <div class="sect">Presets</div>
       <div class="presets">${PRESETS.map((p, i) => `<div class="preset ${i === this.presetIdx ? 'on' : ''}" data-p="${i}"><div class="n">${p.name.toUpperCase()}</div><div class="d">${p.desc}</div><div class="c">${totalThreats(p)} MISSILES · ${p.waves.length} WAVE${p.waves.length > 1 ? 'S' : ''}</div></div>`).join('')}</div>
 
+      <div class="launch">
+        <button class="commence" data-a="go"><span class="go-label">Commence</span><span class="go-sub" data-go-sub>${this.goSub()}</span><span class="go-arrow" aria-hidden="true">▶</span></button>
+        <div class="scenario-errors" role="alert"></div>
+        <div class="launch-bar">
+          <button class="custom-toggle" data-a="custom" aria-expanded="${this.customOpen}" aria-controls="setup-custom">Customize raid, loadout &amp; conditions <span class="chev" aria-hidden="true">▾</span></button>
+          <button class="btn" data-a="cancel">Cancel</button>
+        </div>
+      </div>
+
+      <div class="custom${this.customOpen ? ' open' : ''}" id="setup-custom"><div class="custom-inner">
       <div class="sect">Raid <span><button class="btn" data-a="mult" data-k="0.5">×½</button> <button class="btn" data-a="mult" data-k="2">×2</button> <button class="btn" data-a="add">+ wave</button></span></div>
       <table>
         <tr><th>Arrive (s)</th><th>Type</th><th>Count</th><th>Spacing (s)</th><th>Axes</th><th>Fan (°)</th><th>Profile</th><th></th></tr>
@@ -101,11 +122,10 @@ export class SetupDialog {
           ${this.num('seed', 'Random seed', 1, 99999)}
         </div>
       </div>
-      <div class="scenario-errors" role="alert" style="color:var(--hostile);white-space:pre-line"></div>
       <div class="foot">
         <span style="color:var(--dim)">Tip: stack several time-on-target waves from 4+ axes with a small magazine to saturate Bastion.</span>
-        <span><button class="btn" data-a="cancel">Cancel</button> <button class="btn on" data-a="go">Commence ▶</button></span>
-      </div>`;
+      </div>
+      </div></div>`;
     inner.querySelectorAll<HTMLElement>('.preset').forEach((p) => (p.onclick = () => {
       this.presetIdx = +p.dataset.p!;
       this.cfg = cloneScenario(PRESETS[this.presetIdx]);
@@ -134,6 +154,7 @@ export class SetupDialog {
     });
     inner.querySelectorAll<HTMLButtonElement>('button[data-a]').forEach((b) => (b.onclick = () => {
       const a = b.dataset.a;
+      if (a === 'custom') return this.toggleCustom(b);
       if (a === 'add') {
         const last = this.cfg.waves[this.cfg.waves.length - 1];
         this.cfg.waves.push({ time: (last?.time ?? 140) + 20, type: 'asm_subsonic', count: 6, spacing: 1, axes: 2, fan: 30, profile: 'hi' } as WaveConfig);
@@ -143,7 +164,11 @@ export class SetupDialog {
       else if (a === 'go') {
         const errors = validateScenario(this.cfg);
         inner.querySelector('.scenario-errors')!.textContent = errors.join('\n');
-        if (errors.length) return;
+        if (errors.length) {
+          // the fields at fault live in the drawer
+          if (!this.customOpen) this.toggleCustom(inner.querySelector<HTMLElement>('.custom-toggle')!);
+          return;
+        }
         this.game.restart(this.cfg);
         return this.close();
       }
@@ -152,8 +177,27 @@ export class SetupDialog {
     }));
   }
 
+  /** Slide the customization drawer open or shut (no re-render, so the slide animates). */
+  private toggleCustom(b: HTMLElement) {
+    this.customOpen = !this.customOpen;
+    this.root.querySelector('.custom')!.classList.toggle('open', this.customOpen);
+    b.setAttribute('aria-expanded', String(this.customOpen));
+    try {
+      localStorage.setItem(CUSTOM_KEY, this.customOpen ? '1' : '0');
+    } catch {
+      /* not remembered this time */
+    }
+  }
+
+  /** The line under Commence: what is about to launch. */
+  private goSub() {
+    const total = totalThreats(this.cfg);
+    return `${this.cfg.name} · ${Number.isFinite(total) ? total : '—'} missiles`;
+  }
+
   /** Keep edits in place: rebuilding on blur would remove the button receiving the next click. */
   private updateSummary() {
+    this.root.querySelector('[data-go-sub]')!.textContent = this.goSub();
     const total = totalThreats(this.cfg);
     this.root.querySelector('[data-raid-total]')!.textContent = Number.isFinite(total) ? String(total) : '—';
     this.root.querySelector('[data-site-count]')!.textContent = String(this.cfg.sites);
