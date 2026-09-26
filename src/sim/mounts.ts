@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CIWS_SPEC, GUN_SPEC } from './specs';
 import { gravityAt, densityRatio, SPEED_OF_SOUND } from '../core/constants';
-import { rng } from '../core/rng';
+import { Rng } from '../core/rng';
 import { altitude, upAt } from '../core/geo';
 import type { Ship } from './entities';
 import type { Threat } from './threat';
@@ -158,7 +158,7 @@ export class Ciws extends Mount {
   aim = new THREE.Vector3();
   tof = 0;
   lastSwitch = -10;
-  constructor(name: string, local: THREE.Vector3, arcCenter: number, public idx: number) {
+  constructor(name: string, local: THREE.Vector3, arcCenter: number, public idx: number, private rng = new Rng()) {
     super(name, local, arcCenter, (135 * Math.PI) / 180, (-20 * Math.PI) / 180, (80 * Math.PI) / 180, CIWS_SPEC.slewRate, CIWS_SPEC.elevRate, 2.2);
     this.pitch = this.pitchGoal = 0.1;
   }
@@ -184,6 +184,7 @@ export class Ciws extends Mount {
     }
     const shipPos = ship.pos;
     let best: Threat | null = null, bestTtg = Infinity;
+    let currentTtg = Infinity;
     for (const th of threats) {
       if (!th.alive) continue;
       const r = th.pos.distanceTo(this.worldPos);
@@ -196,19 +197,24 @@ export class Ciws extends Mount {
       const closing = -rel.dot(th.vel.clone().sub(ship.vel)) / Math.max(rel.length(), 1);
       if (closing < 20 && r > 400) continue; // outbound / passing
       const ttg = r / Math.max(closing, 20);
+      if (th === this.target) currentTtg = ttg;
       if (ttg < bestTtg) { bestTtg = ttg; best = th; }
+    }
+    if (this.target && !Number.isFinite(currentTtg)) {
+      this.target = null;
+      this.lockT = 0;
+      this.burstT = 0; // no trailing fire at a target that moved behind the ship
     }
     if (best && best !== this.target) {
       // switch only if the new one is clearly more urgent (avoid flip-flopping)
-      const curTtg = this.target ? this.target.pos.distanceTo(shipPos) / Math.max(this.target.vel.length(), 50) : Infinity;
-      if (!this.target || (bestTtg < curTtg * 0.6 && t - this.lastSwitch > 1.0)) {
+      if (!this.target || (bestTtg < currentTtg * 0.6 && t - this.lastSwitch > 1.0)) {
         this.target = best;
         this.lockT = 0;
         this.lastSwitch = t;
         this.engageStart = t;
         // new target: fresh systematic bias
-        this.biasYaw = rng.gauss() * 0.0035;
-        this.biasPitch = rng.gauss() * 0.0035;
+        this.biasYaw = this.rng.gauss() * 0.0035;
+        this.biasPitch = this.rng.gauss() * 0.0035;
       }
     }
     const tgt = this.target;
@@ -221,13 +227,16 @@ export class Ciws extends Mount {
       this.tof = tof;
       _d.copy(this.aim).sub(this.worldPos).normalize();
       const ang = this.toLocalAngles(ship, _d);
-      this.yawGoal = ang.yaw;
-      this.pitchGoal = THREE.MathUtils.clamp(ang.pitch, this.minEl, this.maxEl);
+      const aimInArc = this.inArc(ang.yaw, ang.pitch);
+      if (aimInArc) {
+        this.yawGoal = ang.yaw;
+        this.pitchGoal = ang.pitch;
+      }
       const err = this.slewTo(dt);
       const r = tgt.pos.distanceTo(this.worldPos);
       const fast = tgt.vel.length() > 1.5 * SPEED_OF_SOUND;
       const openRange = fast ? S.openFireRange * 1.35 : S.openFireRange;
-      if (this.lockT > S.lockTime && err < 0.02 && r < openRange && isFinite(tof) && this.ammo > 0 && this.reloadLeft <= 0) {
+      if (aimInArc && this.inArc(this.yaw, this.pitch) && this.lockT > S.lockTime && err < 0.02 && r < openRange && isFinite(tof) && this.ammo > 0 && this.reloadLeft <= 0) {
         wantFire = true;
         this.state = 'fire';
       }
@@ -242,7 +251,7 @@ export class Ciws extends Mount {
     }
     if (this.burstT > 0) {
       this.burstT -= dt;
-      if (this.ammo > 0 && this.reloadLeft <= 0) wantFire = true;
+      if (enabled && this.inArc(this.yaw, this.pitch) && this.ammo > 0 && this.reloadLeft <= 0) wantFire = true;
     }
     this.spin = THREE.MathUtils.clamp(this.spin + (wantFire || tgt ? dt * 4 : -dt * 1.2), 0, 1);
     if (wantFire && this.spin > 0.6) {
@@ -258,12 +267,12 @@ export class Ciws extends Mount {
         this.fireAcc -= 1;
         this.ammo--;
         this.roundsFired++;
-        const y = this.yaw + this.biasYaw + rng.gauss() * S.dispersion;
-        const pch = this.pitch + this.biasPitch + rng.gauss() * S.dispersion;
+        const y = this.yaw + this.biasYaw + this.rng.gauss() * S.dispersion;
+        const pch = this.pitch + this.biasPitch + this.rng.gauss() * S.dispersion;
         this.dirLocal(y, pch, _d).applyQuaternion(ship.quat);
         const v = _d.multiplyScalar(S.muzzleVel).add(shipV);
         // stagger spawn along the step so the stream is continuous
-        const back = rng.next() * dt;
+        const back = this.rng.next() * dt;
         const pos = m.clone().addScaledVector(v, -back * 0.0);
         rounds.spawn(pos, v, 8, this.idx);
       }
@@ -292,9 +301,19 @@ export class Gun extends Mount {
   tof = 0;
   recoil = 0;
   shots = 0;
-  constructor(local: THREE.Vector3) {
+  private candidateAim = new THREE.Vector3();
+  constructor(local: THREE.Vector3, private rng = new Rng()) {
     super('ANVIL', local, 0, (150 * Math.PI) / 180, (-10 * Math.PI) / 180, (65 * Math.PI) / 180, GUN_SPEC.slewRate, GUN_SPEC.elevRate, 7.0);
     this.pitch = this.pitchGoal = 0.02;
+  }
+  /** Check the led aim point too: an in-arc contact can require an out-of-arc shot. */
+  canEngage(ship: Ship, target: Threat) {
+    if (!this.enabled || this.ammo <= 0 || !target.alive) return false;
+    this.updatePose(ship);
+    const tof = leadSolve(this.muzzle(_p), GUN_SPEC.muzzleVel, GUN_SPEC.dragK, target.pos, target.vel, null, this.candidateAim, ship.vel);
+    if (!Number.isFinite(tof) || tof >= 30) return false;
+    const ang = this.toLocalAngles(ship, _d.copy(this.candidateAim).sub(this.worldPos).normalize());
+    return this.inArc(ang.yaw, ang.pitch);
   }
   update(dt: number, ship: Ship, target: Threat | null, fire: (pos: THREE.Vector3, vel: THREE.Vector3, fuze: number) => void) {
     this.updatePose(ship);
@@ -331,10 +350,10 @@ export class Gun extends Mount {
       this.shots++;
       this.recoil = 1;
       this.state = 'fire';
-      const y = this.yaw + rng.gauss() * 0.002, p = this.pitch + rng.gauss() * 0.002;
+      const y = this.yaw + this.rng.gauss() * 0.002, p = this.pitch + this.rng.gauss() * 0.002;
       this.dirLocal(y, p, _d).applyQuaternion(ship.quat);
       const v = _d.clone().multiplyScalar(GUN_SPEC.muzzleVel).add(ship.vel);
-      fire(m.clone(), v, tof + rng.gauss() * 0.05);
+      fire(m.clone(), v, tof + this.rng.gauss() * 0.05);
     }
   }
 }

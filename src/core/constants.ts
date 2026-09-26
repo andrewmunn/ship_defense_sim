@@ -39,7 +39,7 @@ export function gravityAt(alt: number) {
 export function densityRatio(alt: number) {
   return Math.exp(-Math.max(alt, 0) / SCALE_HEIGHT);
 }
-export const SIM_DT = 1 / 120; // fixed physics step (sim seconds)
+export const SIM_DT = 1 / 60; // fixed physics step (sim seconds), shared by play and headless runs
 export const DEG = Math.PI / 180;
 export const KNOTS = 0.514444; // m/s per knot
 export const NM = 1852; // m per nautical mile

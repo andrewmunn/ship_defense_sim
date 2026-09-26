@@ -6,14 +6,13 @@
  *   npm run balance -- --scenario overwhelm --arrivals        (raid timing check, defenses off)
  *   npm run balance -- --list
  *
- * Every run gets a fixed seed (scenario seed and the shared rng), so results are repeatable and
+ * Every run gets its own scenario-seeded simulation RNG, so results are repeatable and
  * parallel workers never replay the same fight. `npm run balance -- --help` for all options.
  */
 import { fork } from 'node:child_process';
 import { cpus } from 'node:os';
 import { World } from '../src/sim/world';
 import { PRESETS, cloneScenario, totalThreats, type ScenarioConfig } from '../src/sim/scenario';
-import { rng } from '../src/core/rng';
 
 const HELP = `Usage: npm run balance -- [options]
 
@@ -63,7 +62,6 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 function runOne(base: ScenarioConfig, seed: number, arrivals: boolean, maxTime: number): RunResult {
   const cfg = cloneScenario(base);
   cfg.seed = seed;
-  rng.seed(Math.imul(seed, 2654435761));
   if (arrivals) {
     cfg.loadout = { ...cfg.loadout, halberd: 0, glaive: 0, stiletto: 0, wisp: 0, chaff: 0 };
     cfg.doctrine = { ...cfg.doctrine, gun: false, ciws: false, decoys: false };

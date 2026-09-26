@@ -17,7 +17,9 @@ import { CloudShell } from '../render/clouds';
 import { OCCLUDER_LAYER } from '../render/sceneDepth';
 import type { Entity } from '../sim/entities';
 import { altitude, upAt, enuAt } from '../core/geo';
-import { DEG } from '../core/constants';
+import { DEG, SIM_DT } from '../core/constants';
+import { SimClock } from '../core/simClock';
+import { PoseHistory } from './poseHistory';
 
 export const TIME_SCALES = [0.05, 0.1, 0.25, 0.5, 1, 2, 4, 8, 16, 32];
 
@@ -72,6 +74,8 @@ export class Game {
   terrainView: TerrainView | null = null;
   clouds = new CloudShell();
   private terrainKey = '';
+  private simClock = new SimClock();
+  private poses = new PoseHistory();
 
   constructor(public container: HTMLElement) {
     const scene = this.scene;
@@ -133,6 +137,8 @@ export class Game {
     const world = new World(this.cfg, this.shipView.layout);
     world.ship.setHitBoxes(this.shipView.hitBoxes);
     world.ship.updateFrame();
+    this.simClock.reset();
+    this.poses.clear();
     const oldShip = this.world?.ship;
     this.world = world;
     // environment
@@ -161,10 +167,9 @@ export class Game {
     this.terrainView.setClearings(world.launchers.map((L) => ({ x: L.pos.x, z: L.pos.z, r: 22 })));
     this.rig.groundHeight = (x, z) => this.world.waves.heightAt(x, z, this.world.t);
     // views
-    if (this.entities) this.worldGroup.remove(this.entities.group);
-    if (this.fx) this.worldGroup.remove(this.fx.group);
+    this.entities?.dispose();
+    this.fx?.dispose();
     this.particles.clear();
-    this.entities?.trails.clear();
     this.entities = new EntityViews(this.particles, this.glows);
     this.worldGroup.add(this.entities.group);
     this.fx = new Fx(world, this.shipView, this.particles, this.glows, this.streaks);
@@ -297,26 +302,21 @@ export class Game {
     // ------------------------------------------------ simulation (sub-stepped)
     let dtSim = 0;
     if (!this.paused) {
-      let left = dtReal * this.timeScale;
-      let steps = 0;
       const t0 = performance.now();
-      while (left > 1e-6 && steps < 64) {
-        const h = Math.min(1 / 60, left);
+      dtSim = this.simClock.advance(dtReal * this.timeScale, (h) => {
+        this.poses.capture(W);
         W.step(h);
-        left -= h;
-        dtSim += h;
-        steps++;
-        if (performance.now() - t0 > 22) break; // don't spiral at extreme scales
-      }
+      }, () => performance.now() - t0 > 22);
     }
-    this.frameViews(dtReal, dtSim);
+    this.poses.render(W, this.simClock.alpha, () => this.frameViews(dtReal, dtSim));
   }
 
   /**
    * Fast-forward the sim (tests / screenshots / "skip to action"): steps the world and keeps the
    * effect views fed without rendering every step.
    */
-  advance(seconds: number, h = 1 / 60) {
+  advance(seconds: number, h = SIM_DT) {
+    this.poses.clear();
     const n = Math.round(seconds / h);
     let acc = 0;
     for (let i = 0; i < n; i++) {

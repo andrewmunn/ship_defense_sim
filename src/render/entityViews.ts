@@ -152,6 +152,29 @@ export class EntityViews {
     this.group.add(this.trails.group);
   }
 
+  /** Release per-run resources; model templates and their geometry/materials are shared. */
+  dispose() {
+    for (const v of this.missiles.values()) this.removeMissile(v, 0);
+    for (const v of this.decoys.values()) this.removeDecoy(v);
+    this.decoys.clear();
+    this.debris.clear();
+    this.launchers.clear();
+    this.trails.dispose();
+    this.group.clear();
+    this.group.removeFromParent();
+  }
+
+  private removeDecoy(v: DecoyVis) {
+    if (!v.obj) return;
+    v.obj.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      m.geometry.dispose();
+      for (const mat of Array.isArray(m.material) ? m.material : [m.material]) mat.dispose();
+    });
+    v.obj.removeFromParent();
+  }
+
   /** Object3D for an entity (for cameras that want the true model transform). */
   objectFor(id: number) {
     return this.missiles.get(id)?.obj ?? this.debris.get(id)?.obj ?? this.launchers.get(id)?.obj ?? null;
@@ -269,7 +292,7 @@ export class EntityViews {
     }
     for (const [id, v] of this.decoys) {
       if (!liveC.has(id)) {
-        if (v.obj) this.group.remove(v.obj);
+        this.removeDecoy(v);
         this.decoys.delete(id);
       }
     }

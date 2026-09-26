@@ -308,6 +308,18 @@ export class Trails {
     }
   }
 
+  dispose() {
+    this.clear();
+    for (const s of this.slots) {
+      s.geo.dispose();
+      s.mat.dispose();
+    }
+    this.slots = [];
+    this.base.dispose();
+    this.group.clear();
+    this.group.removeFromParent();
+  }
+
   update(t: number, wind: THREE.Vector3, viewportH: number, ambient: THREE.Vector3) {
     this.now = t;
     const u = this.base.uniforms;

@@ -1,5 +1,5 @@
 import type { Game } from '../game/game';
-import { PRESETS, ScenarioConfig, cloneScenario, totalThreats, WaveConfig } from '../sim/scenario';
+import { PRESETS, ScenarioConfig, cloneScenario, totalThreats, WaveConfig, validateScenario } from '../sim/scenario';
 import { THREATS, INTERCEPTORS, ThreatType } from '../sim/specs';
 
 function el<T extends HTMLElement = HTMLElement>(html: string) {
@@ -59,11 +59,11 @@ export class SetupDialog {
           <td><select data-f="profile"><option value="hi" ${w.profile === 'hi' ? 'selected' : ''}>hi-lo</option><option value="lo" ${w.profile === 'lo' ? 'selected' : ''}>sea-skim</option></select></td>
           <td><button class="btn danger" data-a="del" data-i="${i}">✕</button></td></tr>`).join('')}
       </table>
-      <div style="color:var(--dim);margin-top:6px">Total: <b style="color:var(--hostile)">${totalThreats(c)}</b> missiles from ${c.sites} coastal batteries. "Arrive" is the planned time-on-target; launches are scheduled backwards from it.</div>
+      <div style="color:var(--dim);margin-top:6px">Total: <b data-raid-total style="color:var(--hostile)">${totalThreats(c)}</b> missiles from <span data-site-count>${c.sites}</span> coastal batteries. "Arrive" is the planned time-on-target; launches are scheduled backwards from it.</div>
 
       <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">
         <div>
-          <div class="sect">Magazine <span style="font-size:10px;color:${cells > 96 ? 'var(--hostile)' : 'var(--dim)'}">${cells}/96 cells</span></div>
+          <div class="sect">Magazine <span data-vls-cells style="font-size:10px;color:${cells > 96 ? 'var(--hostile)' : 'var(--dim)'}">${cells}/96 cells</span></div>
           ${this.num('loadout.glaive', 'Glaive (ER SAM)', 0, 96)}
           ${this.num('loadout.halberd', 'Halberd (MR SAM)', 0, 96)}
           ${this.num('loadout.stiletto', 'Stiletto (quad-pack)', 0, 384, 4)}
@@ -87,7 +87,7 @@ export class SetupDialog {
           <div class="sect">Environment</div>
           ${this.range('env.timeOfDay', 'Time of day (h)', 0, 24, 0.25)}
           ${this.range('env.seaState', 'Sea state', 0, 6, 1)}
-          ${this.range('env.visibilityKm', 'Visibility (km)', 8, 150, 1)}
+          ${this.range('env.visibilityKm', 'Visibility (km)', 8, 200, 1)}
           ${this.range('env.clouds', 'Cloud cover', 0, 1, 0.05)}
           ${this.range('env.windDeg', 'Wind from (°)', 0, 355, 5)}
         </div>
@@ -101,6 +101,7 @@ export class SetupDialog {
           ${this.num('seed', 'Random seed', 1, 99999)}
         </div>
       </div>
+      <div class="scenario-errors" role="alert" style="color:var(--hostile);white-space:pre-line"></div>
       <div class="foot">
         <span style="color:var(--dim)">Tip: stack several time-on-target waves from 4+ axes with a small magazine to saturate Bastion.</span>
         <span><button class="btn" data-a="cancel">Cancel</button> <button class="btn on" data-a="go">Commence ▶</button></span>
@@ -114,21 +115,22 @@ export class SetupDialog {
       inp.onchange = () => {
         const w = this.cfg.waves[+(inp.closest('tr') as HTMLElement).dataset.w!] as any;
         const f = inp.dataset.f!;
-        w[f] = f === 'type' || f === 'profile' ? inp.value : parseFloat(inp.value) || 0;
+        w[f] = f === 'type' || f === 'profile' ? inp.value : parseFloat(inp.value);
         this.custom();
-        this.render();
+        this.updateSummary();
       };
     });
-    inner.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-k]').forEach((inp) => {
+    inner.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input[data-k], select[data-k]').forEach((inp) => {
       const upd = () => {
         const v = inp instanceof HTMLInputElement && inp.type === 'checkbox' ? inp.checked : inp instanceof HTMLSelectElement ? inp.value : parseFloat(inp.value);
         this.set(inp.dataset.k!, v);
         const out = inp.parentElement?.querySelector('.val');
         if (out) out.textContent = String(v);
         this.custom();
+        this.updateSummary();
       };
       inp.oninput = upd;
-      inp.onchange = () => { upd(); if (inp.dataset.k!.startsWith('loadout')) this.render(); };
+      inp.onchange = upd;
     });
     inner.querySelectorAll<HTMLButtonElement>('button[data-a]').forEach((b) => (b.onclick = () => {
       const a = b.dataset.a;
@@ -139,13 +141,28 @@ export class SetupDialog {
       else if (a === 'mult') this.cfg.waves.forEach((w) => (w.count = Math.max(1, Math.round(w.count * parseFloat(b.dataset.k!)))));
       else if (a === 'cancel') return this.close();
       else if (a === 'go') {
-        if (!this.cfg.waves.length) return;
+        const errors = validateScenario(this.cfg);
+        inner.querySelector('.scenario-errors')!.textContent = errors.join('\n');
+        if (errors.length) return;
         this.game.restart(this.cfg);
         return this.close();
       }
       this.custom();
       this.render();
     }));
+  }
+
+  /** Keep edits in place: rebuilding on blur would remove the button receiving the next click. */
+  private updateSummary() {
+    const total = totalThreats(this.cfg);
+    this.root.querySelector('[data-raid-total]')!.textContent = Number.isFinite(total) ? String(total) : '—';
+    this.root.querySelector('[data-site-count]')!.textContent = String(this.cfg.sites);
+    const lo = this.cfg.loadout;
+    const cells = lo.halberd + lo.glaive + Math.ceil(lo.stiletto / INTERCEPTORS.stiletto.perCell);
+    const label = this.root.querySelector<HTMLElement>('[data-vls-cells]')!;
+    label.textContent = `${Number.isFinite(cells) ? cells : '—'}/96 cells`;
+    label.style.color = cells > 96 ? 'var(--hostile)' : 'var(--dim)';
+    this.root.querySelector('.scenario-errors')!.textContent = '';
   }
 
   private custom() {

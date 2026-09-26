@@ -41,6 +41,7 @@ export class Fx {
   onBig: (pos: THREE.Vector3, kind: string, size: number) => void = () => {};
   private ciwsFlashAcc = [0, 0];
   private smokeAcc = 0;
+  private unsub: (() => void)[] = [];
 
   constructor(private world: World, private ship: ShipView, private particles: Particles, private glows: Glows, private streaks: Streaks) {
     for (let i = 0; i < 6; i++) {
@@ -63,33 +64,49 @@ export class Fx {
 
   private bind() {
     const W = this.world;
-    const ev = W.events;
-    ev.on('detonation', (e) => this.detonation(e.pos, e.vel, e.kind, e.size));
-    ev.on('splash', (e) => this.splash(e.pos, e.size));
-    ev.on('ciwsHit', (e) => {
+    const on: typeof W.events.on = (key, fn) => {
+      const off = W.events.on(key, fn);
+      this.unsub.push(off);
+      return off;
+    };
+    on('detonation', (e) => this.detonation(e.pos, e.vel, e.kind, e.size));
+    on('splash', (e) => this.splash(e.pos, e.size));
+    on('ciwsHit', (e) => {
       const p = e.pos;
       this.spawn({ pos: p.clone(), life: 0.08, size0: 1.2, size1: 3, color: [1, 0.85, 0.6], alpha: 30, type: PT.FLASH });
       for (let i = 0; i < 10; i++) this.spawn({ pos: p.clone(), vel: rv(80).add(_v.copy(e.threat.vel).multiplyScalar(0.7)), life: 0.4 + rng.next() * 0.5, size0: 0.25, size1: 0.1, drag: 1, gravity: 9.8, color: [1, 0.8, 0.5], alpha: 6, type: PT.SPARK });
       this.spawn({ pos: p.clone(), vel: _v.copy(e.threat.vel).multiplyScalar(0.4), life: 3, size0: 0.6, size1: 4, drag: 2, color: [0.3, 0.3, 0.3], alpha: 0.5, type: PT.SMOKE });
     });
-    ev.on('gunFire', (e) => this.gunFire(e.pos, e.dir));
-    ev.on('interceptorLaunch', (e) => this.vlsLaunch(e.cell, e.m.spec.type));
-    ev.on('threatLaunch', (e) => this.threatLaunch(e.threat.pos, e.threat.vel));
-    ev.on('boosterSep', (e) => {
+    on('gunFire', (e) => this.gunFire(e.pos, e.dir));
+    on('interceptorLaunch', (e) => this.vlsLaunch(e.cell, e.m.spec.type));
+    on('threatLaunch', (e) => this.threatLaunch(e.threat.pos, e.threat.vel));
+    on('boosterSep', (e) => {
       const p = e.debris.pos;
       this.spawn({ pos: p.clone(), vel: e.from.vel.clone().multiplyScalar(0.8), life: 0.3, size0: 1, size1: 5, color: [1, 0.7, 0.4], alpha: 10, type: PT.FLASH });
       for (let i = 0; i < 5; i++) this.spawn({ pos: p.clone(), vel: e.from.vel.clone().multiplyScalar(0.5).add(rv(5)), life: 6, size0: 1, size1: 6, drag: 1.5, color: [0.75, 0.73, 0.7], alpha: 0.5, type: PT.SMOKE });
     });
-    ev.on('decoy', (e) => {
+    on('decoy', (e) => {
       const p = e.from;
       this.spawn({ pos: p.clone(), life: 0.12, size0: 0.5, size1: 3.5, color: [1, 0.8, 0.5], alpha: 25, type: PT.FLASH });
       for (let i = 0; i < 6; i++) this.spawn({ pos: p.clone(), vel: e.decoy.vel.clone().multiplyScalar(0.15).add(rv(2)), life: 5, size0: 0.6, size1: 4, drag: 2, rise: 1, color: [0.75, 0.75, 0.75], alpha: 0.55, type: PT.SMOKE });
       this.addFlash(p, [1, 0.7, 0.4], 800, 60, 0.15);
     });
-    ev.on('shipHit', (e) => {
+    on('shipHit', (e) => {
       this.shake += 2.5;
       this.onBig(e.world, 'shipHit', e.damage);
     });
+  }
+
+  dispose() {
+    for (const off of this.unsub) off();
+    this.unsub = [];
+    this.flashes = [];
+    this.frags = [];
+    this.foamBursts = [];
+    this.oceanLights = [];
+    this.group.clear();
+    this.group.removeFromParent();
+    this.lights = [];
   }
 
   // ------------------------------------------------------------------ recipes

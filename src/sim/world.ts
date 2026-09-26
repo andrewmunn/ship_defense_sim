@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Emitter } from '../core/events';
-import { Rng, rng } from '../core/rng';
+import { Rng } from '../core/rng';
 import { destination, upAt, altitude, setAltitude, surfaceDistance, bearingTo, bearingDir, enuAt } from '../core/geo';
 import { KNOTS, DEG, DRAG, SPEED_OF_SOUND } from '../core/constants';
 import { Ship, Debris, Decoy, Launcher, Entity } from './entities';
@@ -117,7 +117,8 @@ export class World {
   decoys: Decoy[] = [];
   launchers: Launcher[] = [];
   sites: THREE.Vector3[] = [];
-  radar = new Radar();
+  radar: Radar;
+  readonly rng: Rng;
   bastion: Bastion;
   ciws: Ciws[];
   gun: Gun;
@@ -144,6 +145,8 @@ export class World {
   raidDelay = 0;
 
   constructor(public cfg: ScenarioConfig, public layout: ShipLayout = defaultLayout()) {
+    this.rng = new Rng(Math.imul(cfg.seed, 2654435761));
+    this.radar = new Radar(this.rng);
     this.rngS = new Rng(cfg.seed * 7919 + 17);
     this.waves = new WaveField(cfg.env.seaState, (cfg.env.windDeg + 180) * DEG);
     const wsp = 3 + cfg.env.seaState * 2.5;
@@ -166,8 +169,8 @@ export class World {
     ship.updateFrame();
 
     const L = this.layout;
-    this.ciws = [new Ciws('CIWS 1 (fwd)', L.ciwsFwd, 0, 0), new Ciws('CIWS 2 (aft)', L.ciwsAft, Math.PI, 1)];
-    this.gun = new Gun(L.gun);
+    this.ciws = [new Ciws('CIWS 1 (fwd)', L.ciwsFwd, 0, 0, this.rng), new Ciws('CIWS 2 (aft)', L.ciwsAft, Math.PI, 1, this.rng)];
+    this.gun = new Gun(L.gun, this.rng);
     this.gun.ammo = cfg.loadout.gunRounds;
     for (const c of this.ciws) c.ammo = cfg.loadout.ciwsRounds;
     this.illuminators = [
@@ -340,7 +343,8 @@ export class World {
    * however the threats are tuned.
    */
   private flightTime(pl: PlannedLaunch) {
-    const m = new Threat(pl.type);
+    // Planning probes must not consume the live combat sequence.
+    const m = new Threat(pl.type, new Rng(this.cfg.seed + pl.wave * 7919 + pl.site));
     this.rackThreat(m, pl, this.launchers.find((l) => l.site === pl.site)!.pos);
     m.fuelTime = Infinity;
     const tgt = { pos: m.aimPoint.clone(), vel: new THREE.Vector3(), id: -1, rcs: this.shipTarget.rcs };
@@ -375,9 +379,9 @@ export class World {
   launchInterceptor(type: InterceptorType, tr: Track, pip: THREE.Vector3, launcher: 'fwd' | 'aft') {
     const cands = this.cells.filter((c) => c.type === type && c.count > 0 && c.launcher === launcher);
     if (!cands.length) return null;
-    const cell = cands[Math.floor(rng.next() * cands.length)];
+    const cell = cands[Math.floor(this.rng.next() * cands.length)];
     cell.count--;
-    const m = new Interceptor(type, tr.threat, tr);
+    const m = new Interceptor(type, tr.threat, tr, this.rng);
     const ship = this.ship;
     m.pos.copy(cell.local).applyMatrix4(ship.localToWorld);
     m.launchUp.set(0, 1, 0).applyQuaternion(ship.quat).normalize();
@@ -399,7 +403,7 @@ export class World {
     let fired = false;
     const mounts = this.layout.decoyLaunchers.filter((s) => s.side === side);
     if (!mounts.length) return false;
-    const mnt = mounts[Math.floor(rng.next() * mounts.length)];
+    const mnt = mounts[Math.floor(this.rng.next() * mounts.length)];
     const from = mnt.pos.clone().applyMatrix4(ship.localToWorld);
     upAt(ship.pos, _u);
     const toThreat = tr.estPos.clone().sub(ship.pos);
@@ -410,7 +414,7 @@ export class World {
       d.pos.copy(from);
       // Wisp flies out perpendicular-ish, away from the ship toward the threat side
       const fwd = ship.forward(new THREE.Vector3());
-      const dir = toThreat.clone().multiplyScalar(0.4).addScaledVector(fwd, rng.chance(0.5) ? 0.6 : -0.6).normalize();
+      const dir = toThreat.clone().multiplyScalar(0.4).addScaledVector(fwd, this.rng.chance(0.5) ? 0.6 : -0.6).normalize();
       d.vel.copy(ship.vel).addScaledVector(dir, 28).addScaledVector(_u, 30);
       this.decoys.push(d);
       this.events.emit('decoy', { decoy: d, from });
@@ -476,11 +480,11 @@ export class World {
       d.pos.copy(th.pos);
       d.vel.copy(th.vel);
       d.quat.copy(th.quat);
-      d.spin.set(rng.gauss() * 2, rng.gauss() * 2, rng.gauss() * 4);
+      d.spin.set(this.rng.gauss() * 2, this.rng.gauss() * 2, this.rng.gauss() * 4);
       d.life = 40;
       d.radius = th.spec.length / 2;
       (d as any).warheadKg = th.spec.warheadKg;
-      (d as any).live = rng.chance(0.25);
+      (d as any).live = this.rng.chance(0.25);
       this.debris.push(d);
       this.events.emit('detonation', { pos: th.pos.clone(), vel: th.vel.clone().multiplyScalar(0.5), kind: 'breakup', size: 20, entity: th });
       th.remove = true;
@@ -503,7 +507,7 @@ export class World {
     const R = 10 + warheadKg / 25;
     const knock = (p: THREE.Vector3, off: () => void, label: string) => {
       const d = p.distanceTo(local);
-      if (d < R && rng.chance(1 - d / R + 0.15)) {
+      if (d < R && this.rng.chance(1 - d / R + 0.15)) {
         off();
         this.log(`${label} OFFLINE`, 'warn');
       }
@@ -573,7 +577,7 @@ export class World {
         d.pos.copy(m.pos).addScaledVector(m.vel.clone().normalize(), -m.spec.length * 0.45);
         d.vel.copy(m.vel).multiplyScalar(0.92);
         d.quat.copy(m.quat);
-        d.spin.set(rng.gauss() * 1.5, rng.gauss() * 1.5, rng.gauss());
+        d.spin.set(this.rng.gauss() * 1.5, this.rng.gauss() * 1.5, this.rng.gauss());
         d.life = 30;
         this.debris.push(d);
         this.events.emit('boosterSep', { from: m, debris: d });
@@ -635,10 +639,10 @@ export class World {
         this.releaseIllum(m);
         const pk = m.pkAt(m.missDist);
         this.events.emit('detonation', { pos: m.pos.clone(), vel: m.vel.clone().multiplyScalar(0.25), kind: 'intercept', size: 60, entity: m });
-        if (m.target.alive && rng.chance(pk)) {
+        if (m.target.alive && this.rng.chance(pk)) {
           this.stats.results.detKill = (this.stats.results.detKill ?? 0) + 1;
           m.result = 'kill';
-          this.killThreat(m.target, m.spec.short, rng.chance(0.45) ? 'blast' : 'breakup');
+          this.killThreat(m.target, m.spec.short, this.rng.chance(0.45) ? 'blast' : 'breakup');
         } else {
           m.result = 'miss';
           if (m.target.alive) {
@@ -716,7 +720,7 @@ export class World {
         this.over = true;
         this.outcome = 'sunk';
         this.events.emit('sunk', {});
-      } else if (!ship.sinking && !this.plan.length && this.threats.every((x) => !x.alive) && this.stats.launched > 0 && this.debris.every((d) => d.debrisKind !== 'carcass')) {
+      } else if (!ship.sinking && !this.plan.length && this.threats.every((x) => !x.alive) && this.debris.every((d) => d.debrisKind !== 'carcass')) {
         this.over = true;
         this.outcome = 'survived';
         this.log(`RAID DEFEATED — ${this.stats.killed}/${this.stats.launched} killed, ${this.stats.hits} hits taken`, 'good');
@@ -743,7 +747,7 @@ export class World {
   private launchThreat(pl: PlannedLaunch) {
     const cands = this.launchers.filter((l) => l.site === pl.site);
     const L = cands.sort((a, b) => a.lastFire - b.lastFire)[0];
-    const m = new Threat(pl.type);
+    const m = new Threat(pl.type, this.rng);
     m.waveIdx = pl.wave;
     const brg = this.rackThreat(m, pl, L.pos);
     m.launchTime = this.t;
@@ -773,10 +777,10 @@ export class World {
         if (hitT >= 0) {
           R.kill(i);
           th.ciwsHits++;
-          th.hp -= rng.range(0.6, 1.4);
+          th.hp -= this.rng.range(0.6, 1.4);
           const hp = new THREE.Vector3().lerpVectors(th.prevPos, th.pos, hitT);
           this.events.emit('ciwsHit', { pos: hp, threat: th });
-          if (rng.chance(S.pkPerHit)) this.killThreat(th, 'CIWS', 'blast');
+          if (this.rng.chance(S.pkPerHit)) this.killThreat(th, 'CIWS', 'blast');
           else if (th.hp <= 0) this.killThreat(th, 'CIWS', 'breakup');
           break;
         }
@@ -791,7 +795,7 @@ export class World {
         const h = this.waves.heightAt(R.px[i], R.pz[i], t);
         if (alt < h) {
           R.kill(i);
-          if (rng.chance(0.35)) this.events.emit('splash', { pos: new THREE.Vector3(R.px[i], R.py[i], R.pz[i]), size: 0.25 });
+          if (this.rng.chance(0.35)) this.events.emit('splash', { pos: new THREE.Vector3(R.px[i], R.py[i], R.pz[i]), size: 0.25 });
         }
       }
     }
@@ -826,7 +830,7 @@ export class World {
           const d = th.pos.distanceTo(p);
           if (d < GUN_SPEC.fuzeRadius * 1.3) {
             const pk = GUN_SPEC.pkInFuze * (1 - d / (GUN_SPEC.fuzeRadius * 1.3)) * (th.spec.speed > 1.5 * SPEED_OF_SOUND ? 0.4 : 1);
-            if (rng.chance(pk)) this.killThreat(th, 'ANVIL', 'breakup');
+            if (this.rng.chance(pk)) this.killThreat(th, 'ANVIL', 'breakup');
           }
         }
       }

@@ -37,4 +37,5 @@ export class Rng {
     return this.next() < p;
   }
 }
+/** Cosmetic randomness only. Simulation systems receive a World-owned Rng. */
 export const rng = new Rng((Date.now() & 0xffffff) ^ 0x5eed);

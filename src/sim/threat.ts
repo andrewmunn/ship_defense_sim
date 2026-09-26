@@ -7,7 +7,7 @@ import { GRAVITY, L, V, T, gravityAt } from '../core/constants';
 
 /** Guidance gains are authored in 1/s at full scale; they speed up with the compressed timeline. */
 const K = 1 / T(1);
-import { rng } from '../core/rng';
+import { Rng } from '../core/rng';
 
 export type ThreatPhase = 'boost' | 'climb' | 'cruise' | 'descent' | 'terminal' | 'popup' | 'dive' | 'dead';
 
@@ -26,8 +26,8 @@ export class Threat extends Entity {
   /** What the seeker is locked on to (ship or decoy). */
   lockTarget: { pos: THREE.Vector3; vel: THREE.Vector3; id: number } | null = null;
   seduced = false;
-  weavePhase = rng.range(0, Math.PI * 2);
-  weaveSign = rng.chance(0.5) ? 1 : -1;
+  weavePhase: number;
+  weaveSign: number;
   boosterAttached = true;
   killedBy: string | null = null;
   trackNumber = 0;
@@ -49,13 +49,15 @@ export class Threat extends Entity {
   /** Ship-local aim offset (m), so hits spread along the hull. */
   aimLocal = new THREE.Vector3();
 
-  constructor(type: ThreatType) {
+  constructor(type: ThreatType, private rng = new Rng()) {
     super();
+    this.weavePhase = this.rng.range(0, Math.PI * 2);
+    this.weaveSign = this.rng.chance(0.5) ? 1 : -1;
     this.spec = THREATS[type];
-    this.hp = this.spec.hp * rng.range(0.7, 1.3);
+    this.hp = this.spec.hp * this.rng.range(0.7, 1.3);
     this.radius = this.spec.length / 2;
     this.name = this.spec.short;
-    this.terminalAlt = this.spec.skimAlt * rng.range(0.8, 1.3);
+    this.terminalAlt = this.spec.skimAlt * this.rng.range(0.8, 1.3);
     this.cruiseAlt = this.spec.cruiseAlt;
   }
 
@@ -113,7 +115,7 @@ export class Threat extends Entity {
           this.decoyRolls++;
           (d.userDataTried ??= new Set()).add(this.id);
           const p = s.decoySusceptibility * Math.min(1.5, d.effectiveRcs() / targets.ship.rcs) * (rs > L(3000) ? 1 : 0.4);
-          if (rng.chance(p)) {
+          if (this.rng.chance(p)) {
             this.lockTarget = d;
             this.seduced = true;
           }

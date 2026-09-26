@@ -1,4 +1,4 @@
-import type { ThreatType } from './specs';
+import { THREATS, INTERCEPTORS, type ThreatType } from './specs';
 
 export interface WaveConfig {
   /** Seconds after scenario start at which the wave's first missile arrives (TOT) or launches (stream). */
@@ -120,4 +120,43 @@ export function cloneScenario(s: ScenarioConfig): ScenarioConfig {
 
 export function totalThreats(s: ScenarioConfig) {
   return s.waves.reduce((a, w) => a + w.count, 0);
+}
+
+/** Validate before cloning: JSON serialization would silently turn NaN into null. */
+export function validateScenario(s: ScenarioConfig, allowEmptyRaid = false): string[] {
+  const errors: string[] = [];
+  const number = (label: string, value: number, min: number, max: number, integer = false) => {
+    if (!Number.isFinite(value) || value < min || value > max || (integer && !Number.isInteger(value)))
+      errors.push(`${label} must be ${integer ? 'a whole number' : 'a number'} from ${min} to ${max}.`);
+  };
+  number('Random seed', s.seed, 1, 99999, true);
+  number('Coast distance', s.coastKm, 18, 90);
+  number('Coast bearing', s.coastBearing, 0, 360);
+  number('Launch batteries', s.sites, 1, 8, true);
+  number('Ship speed', s.ship.speedKts, 0, 32);
+  number('Ship heading', s.ship.heading, 0, 360);
+  number('Time of day', s.env.timeOfDay, 0, 24);
+  number('Sea state', s.env.seaState, 0, 6);
+  number('Visibility', s.env.visibilityKm, 8, 200);
+  number('Cloud cover', s.env.clouds, 0, 1);
+  number('Wind bearing', s.env.windDeg, 0, 360);
+  const limits = { halberd: 96, glaive: 96, stiletto: 384, ciwsRounds: 1550, gunRounds: 600, wisp: 24, chaff: 60 };
+  for (const k of Object.keys(limits) as (keyof typeof limits)[]) number(k, s.loadout[k], 0, limits[k], true);
+  const cells = s.loadout.halberd + s.loadout.glaive + Math.ceil(s.loadout.stiletto / INTERCEPTORS.stiletto.perCell);
+  if (cells > 96) errors.push('The magazine needs more than the available 96 VLS cells.');
+  number('Reaction time', s.doctrine.reaction, 0.5, 12);
+  number('Engagements per illuminator', s.doctrine.illumShare, 1, 3, true);
+  if (!['auto', 'sls', 'salvo'].includes(s.doctrine.policy)) errors.push('Choose a valid engagement policy.');
+  for (const [i, w] of s.waves.entries()) {
+    const label = `Wave ${i + 1}`;
+    number(`${label} arrival`, w.time, 30, 86400);
+    number(`${label} count`, w.count, allowEmptyRaid ? 0 : 1, 200, true);
+    number(`${label} spacing`, w.spacing, 0, 3600);
+    number(`${label} axes`, w.axes, 1, 8, true);
+    number(`${label} fan`, w.fan, 0, 120);
+    if (!Object.hasOwn(THREATS, w.type)) errors.push(`${label} has an unknown missile type.`);
+    if (!['hi', 'lo'].includes(w.profile)) errors.push(`${label} has an unknown flight profile.`);
+  }
+  if (!allowEmptyRaid && (!s.waves.length || totalThreats(s) <= 0)) errors.push('Add at least one missile to the raid.');
+  return errors;
 }

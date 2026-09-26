@@ -125,11 +125,14 @@ export class Bastion {
     tracks.sort((a, b) => a.ttg - b.ttg);
     this.maneuver(tracks, t);
     for (const tr of tracks) {
+      const hadPending = tr.engagedBy.length > 0;
       tr.engagedBy = tr.engagedBy.filter((m) => m.alive && m.result === 'pending');
       const inFlight = tr.engagedBy;
+      if (hadPending && !inFlight.length) tr.lastLook = t;
+      const policy = W.cfg.doctrine.policy;
+      if (policy === 'sls' && (inFlight.length || (tr.lastLook >= 0 && t - tr.lastLook < T(2.5)))) continue;
       let pSurvive = 1;
       for (const m of inFlight) pSurvive *= 1 - m.plannedPk;
-      const policy = W.cfg.doctrine.policy;
       const need = policy === 'salvo' ? 0.9 : 0.75;
       if (1 - pSurvive >= need) continue;
       // Candidate weapons by preference
@@ -161,7 +164,9 @@ export class Bastion {
         n = ttgAfter > T(6) ? 1 : 2;
         if (fast) n = 2;
       }
-      n = Math.max(1, Math.min(n, 3 - inFlight.length));
+      // n is the desired total pending salvo, not a fresh allowance on every evaluation.
+      if (policy === 'auto' && n === 1 && tr.lastLook >= 0 && t - tr.lastLook < T(2.5)) continue;
+      n = Math.max(0, Math.min(n - inFlight.length, 3 - inFlight.length));
       for (let k = 0; k < n; k++) {
         // each extra salvo round needs its own illuminator slot
         if (k > 0 && INTERCEPTORS[sol.weapon].semiActive) {
@@ -178,6 +183,7 @@ export class Bastion {
       let best: Track | null = null;
       for (const tr of tracks) {
         if (tr.range > GUN_SPEC.maxRange || tr.range < GUN_SPEC.minRange || tr.ttg < 3) continue;
+        if (!W.gun.canEngage(W.ship, tr.threat)) continue;
         if (!best || tr.ttg < best.ttg) best = tr;
       }
       W.gunTarget = best ? best.threat : null;

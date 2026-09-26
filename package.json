@@ -8,7 +8,9 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "shot": "node tools/shot.mjs",
-    "balance": "rolldown tools/balance.ts -p node --format esm -o node_modules/.cache/balance/balance.mjs > /dev/null && node node_modules/.cache/balance/balance.mjs"
+    "balance": "rolldown tools/balance.ts -p node --format esm -o node_modules/.cache/balance/balance.mjs > /dev/null && node node_modules/.cache/balance/balance.mjs",
+    "test": "node tools/test.mjs",
+    "test:browser": "npm run build && node tools/browsercheck.mjs"
   },
   "dependencies": {
     "postprocessing": "^6.39.5",

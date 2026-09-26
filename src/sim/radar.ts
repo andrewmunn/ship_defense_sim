@@ -1,17 +1,15 @@
 import * as THREE from 'three';
 import { altitude, horizonDist, surfaceDistance, bearingTo, upAt } from '../core/geo';
 import { K_REFRACTION } from '../core/constants';
-import { rng } from '../core/rng';
+import { Rng } from '../core/rng';
 import type { Threat } from './threat';
 import type { Interceptor } from './interceptor';
 
 export type TrackClass = 'pending' | 'unknown' | 'hostile';
 
-let nextTn = 7001;
-
 /** A radar track: the combat system only ever sees these estimates, never the truth. */
 export class Track {
-  tn = nextTn++;
+  tn: number;
   /** Estimated position now: the filtered position at the last detection, propagated forward. */
   estPos = new THREE.Vector3();
   estVel = new THREE.Vector3();
@@ -41,7 +39,8 @@ export class Track {
   ttg = Infinity;
   range = Infinity;
   bearing = 0;
-  constructor(public threat: Threat, t: number) {
+  constructor(public threat: Threat, t: number, tn = 7001) {
+    this.tn = tn;
     this.firstDetect = this.lastDetect = t;
     this.estPos.copy(threat.pos);
     this.fPos.copy(threat.pos);
@@ -85,6 +84,9 @@ const _up = new THREE.Vector3();
  * SNR vs RCS/range^4, multipath fading close to the horizon, and sea-clutter for skimmers.
  */
 export class Radar {
+  private nextTn = 7001;
+  constructor(private rng = new Rng()) {}
+
   tracks: Track[] = [];
   byThreat = new Map<number, Track>();
   /** Radar phase-center height above the waterline (m). */
@@ -128,16 +130,16 @@ export class Radar {
       if (t < due) continue;
       let tr = this.byThreat.get(th.id);
       // Revisit: tracked targets at 5 Hz; search at 1.5 Hz
-      this.nextLook.set(th.id, t + (tr && !tr.lost ? 0.2 : 0.65) * (0.9 + rng.next() * 0.2));
+      this.nextLook.set(th.id, t + (tr && !tr.lost ? 0.2 : 0.65) * (0.9 + this.rng.next() * 0.2));
       if (!this.enabled) continue;
       const pd = this.detectProb(radar, th);
-      if (!rng.chance(pd)) continue;
+      if (!this.rng.chance(pd)) continue;
       const R = radar.distanceTo(th.pos);
       const sigma = 3 + R * 0.0004;
-      const meas = th.pos.clone().add(new THREE.Vector3(rng.gauss(), rng.gauss(), rng.gauss()).multiplyScalar(sigma));
+      const meas = th.pos.clone().add(new THREE.Vector3(this.rng.gauss(), this.rng.gauss(), this.rng.gauss()).multiplyScalar(sigma));
       if (!tr || tr.lost) {
         if (tr) this.tracks = this.tracks.filter((x) => x !== tr);
-        tr = new Track(th, t);
+        tr = new Track(th, t, this.nextTn++);
         tr.initFilter(meas, t);
         this.tracks.push(tr);
         this.byThreat.set(th.id, tr);

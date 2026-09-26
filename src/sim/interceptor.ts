@@ -5,7 +5,7 @@ import { altitude, upAt } from '../core/geo';
 import { GRAVITY, L, T, V, densityRatio, gravityAt } from '../core/constants';
 import { motorAccel, MIN_USEFUL_SPEED } from './flyout';
 import { flyTime } from './flytime';
-import { rng } from '../core/rng';
+import { Rng } from '../core/rng';
 import type { Threat } from './threat';
 import type { Track } from './radar';
 
@@ -57,7 +57,7 @@ export class Interceptor extends Entity {
   loftDist = 0;
   private nextUplink = 0;
 
-  constructor(type: InterceptorType, target: Threat, track: Track) {
+  constructor(type: InterceptorType, target: Threat, track: Track, private rng = new Rng()) {
     super();
     this.spec = INTERCEPTORS[type];
     this.target = target;
@@ -142,7 +142,7 @@ export class Interceptor extends Entity {
         const cmd = new THREE.Vector3().crossVectors(vDir, omega).multiplyScalar(-N * closingSpeed);
         // Seeker noise (glint); worse without illumination for semi-active missiles
         const noiseAmp = this.illuminated || !s.semiActive ? 1.2 : 40;
-        if (rng.chance(dt * 6 * K)) this.seekerNoise.set(rng.gauss(), rng.gauss(), rng.gauss()).multiplyScalar(noiseAmp);
+        if (this.rng.chance(dt * 6 * K)) this.seekerNoise.set(this.rng.gauss(), this.rng.gauss(), this.rng.gauss()).multiplyScalar(noiseAmp);
         cmd.add(this.seekerNoise);
         cmd.addScaledVector(tgt.lastAccel, 0.5 * N * 0.5);
         // remove along-velocity component

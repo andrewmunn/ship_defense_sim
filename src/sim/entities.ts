@@ -259,10 +259,12 @@ export class Decoy extends Entity {
       this.pos.addScaledVector(this.vel, dt).addScaledVector(_u, -0.6 * dt);
       this.radius = Math.min(80, 10 + this.age * 20);
     } else {
-      this.pos.addScaledVector(this.vel, dt);
-      // hover: hold altitude ~40 m
+      // Brake the launch climb and correct altitude from either side of the hover height.
+      upAt(this.pos, _u);
       const alt = altitude(this.pos);
-      if (alt < 40) setAltitude(this.pos, alt + (40 - alt) * Math.min(1, dt * 2));
+      const climb = THREE.MathUtils.clamp((40 - alt) * 2, -30, 30);
+      this.vel.addScaledVector(_u, (climb - this.vel.dot(_u)) * (1 - Math.exp(-dt * 4)));
+      this.pos.addScaledVector(this.vel, dt);
     }
     if (this.age > this.life) this.remove = true;
   }

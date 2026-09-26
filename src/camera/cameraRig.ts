@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { enuAt, altitude, upAt } from '../core/geo';
+import { R_PLANET } from '../core/constants';
 
 /** Anything the camera can follow. */
 export interface Trackable {
@@ -313,7 +314,7 @@ export class CameraRig {
     const r = this.dom.getBoundingClientRect();
     const ndc = new THREE.Vector3(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1, 0.5);
     const dir = ndc.unproject(cam).sub(cam.position).normalize();
-    const R = 1_000_000;
+    const R = R_PLANET;
     const c = new THREE.Vector3(cam.position.x, cam.position.y + R, cam.position.z);
     const b = c.dot(dir);
     const disc = b * b - (c.lengthSq() - R * R);

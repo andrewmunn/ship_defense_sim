@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Effect, BlendFunction } from 'postprocessing';
+import { R_PLANET } from '../core/constants';
 
 /**
  * Guards the HDR buffer before bloom: clamps to a finite ceiling and zeroes NaNs. A single Inf/NaN
@@ -126,7 +127,7 @@ export class FlareEffect extends Effect {
     const u = this.uniforms;
     const behind = this._f.set(0, 0, -1).applyQuaternion(camera.quaternion).dot(sunDir) < 0;
     // the planet itself can hide the sun (high-altitude views of the night side / low sun)
-    const R = 1_000_000;
+    const R = R_PLANET;
     const cx = camera.position.x, cy = camera.position.y + R, cz = camera.position.z;
     const b = cx * sunDir.x + cy * sunDir.y + cz * sunDir.z;
     const disc = b * b - (cx * cx + cy * cy + cz * cz - R * R);
