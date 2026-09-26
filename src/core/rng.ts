@@ -4,6 +4,10 @@ export class Rng {
   constructor(seed = 1234567) {
     this.s = seed >>> 0;
   }
+  /** Restart the sequence from `seed` (repeatable runs, e.g. tools/balance.ts). */
+  seed(seed: number) {
+    this.s = seed >>> 0;
+  }
   next() {
     let t = (this.s = (this.s + 0x6d2b79f5) >>> 0);
     t = Math.imul(t ^ (t >>> 15), t | 1);

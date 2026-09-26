@@ -26,7 +26,8 @@ export interface SimEvents {
   ciwsHit: { pos: THREE.Vector3; threat: Threat };
   gunFire: { pos: THREE.Vector3; dir: THREE.Vector3 };
   splash: { pos: THREE.Vector3; size: number };
-  shipHit: { local: THREE.Vector3; world: THREE.Vector3; damage: number; zone: string };
+  /** `source`: the threat type that struck, or 'debris' for wreckage of a missile already killed. */
+  shipHit: { local: THREE.Vector3; world: THREE.Vector3; damage: number; zone: string; source: ThreatType | 'debris' };
   track: { track: Track };
   kill: { threat: Threat; by: string };
   decoy: { decoy: Decoy; from: THREE.Vector3 };
@@ -487,7 +488,7 @@ export class World {
     this.events.emit('threatDeath', { threat: th, mode });
   }
 
-  private shipHit(pos: THREE.Vector3, local: THREE.Vector3, zone: string, warheadKg: number, name: string) {
+  private shipHit(pos: THREE.Vector3, local: THREE.Vector3, zone: string, warheadKg: number, name: string, source: ThreatType | 'debris') {
     const ship = this.ship;
     const dmg = Math.min(110, warheadKg * 0.21 + 4);
     ship.hp = Math.max(0, ship.hp - dmg);
@@ -495,7 +496,7 @@ export class World {
     this.stats.hits++;
     (ship.damage as any)[zone] += dmg;
     ship.fires.push({ local: local.clone(), intensity: Math.min(1, 0.4 + warheadKg / 300), age: 0 });
-    this.events.emit('shipHit', { local: local.clone(), world: pos.clone(), damage: dmg, zone });
+    this.events.emit('shipHit', { local: local.clone(), world: pos.clone(), damage: dmg, zone, source });
     this.events.emit('detonation', { pos: pos.clone(), vel: new THREE.Vector3(), kind: 'shipHit', size: warheadKg });
     this.log(`!!! ${name} IMPACT — ${zone.toUpperCase()} — damage ${Math.round(dmg)}% (hull ${Math.round(ship.hp)}%)`, 'alert');
     // Systems in the blast radius go down
@@ -592,7 +593,7 @@ export class World {
         m.killedBy = 'IMPACT';
         const wp = hit.local.clone().applyMatrix4(ship.localToWorld);
         this.radar.markDead(m, t);
-        this.shipHit(wp, hit.local, hit.box.zone, m.spec.warheadKg, `TN ${m.trackNumber || '----'} ${m.spec.short}`);
+        this.shipHit(wp, hit.local, hit.box.zone, m.spec.warheadKg, `TN ${m.trackNumber || '----'} ${m.spec.short}`, m.type);
         this.events.emit('threatDeath', { threat: m, mode: 'impact' });
         continue;
       }
@@ -687,7 +688,7 @@ export class World {
           const wp = hit.local.clone().applyMatrix4(ship.localToWorld);
           const live = (d as any).live;
           const kg = live ? (d as any).warheadKg * 0.8 : 25;
-          this.shipHit(wp, hit.local, hit.box.zone, kg, live ? 'DEBRIS (warhead)' : 'DEBRIS');
+          this.shipHit(wp, hit.local, hit.box.zone, kg, live ? 'DEBRIS (warhead)' : 'DEBRIS', 'debris');
           continue;
         }
       }
