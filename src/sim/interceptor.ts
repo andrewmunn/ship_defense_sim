@@ -33,6 +33,8 @@ export class Interceptor extends Entity {
   /** Needs illumination during terminal (semi-active). */
   illuminated = false;
   illuminator = -1;
+  /** Illuminator fire control reserved for this missile's terminal window (-1 = none). */
+  plannedIllum = -1;
   missDist = Infinity;
   result: 'pending' | 'kill' | 'miss' | 'noillum' = 'pending';
   lastRange = Infinity;
@@ -163,7 +165,7 @@ export class Interceptor extends Entity {
         const err = desired.clone().addScaledVector(vDir, -desired.dot(vDir));
         const gain = (this.phase === 'turnover' ? 6 : 3) * K;
         const cmd = err.multiplyScalar(gain * speed);
-        const lim = this.phase === 'turnover' ? Math.max(maxA, 25 * GRAVITY) : maxA;
+        const lim = this.phase === 'turnover' ? Math.max(maxA, s.turnoverG * GRAVITY) : maxA;
         if (cmd.length() > lim) cmd.setLength(lim);
         acc.add(cmd);
         acc.addScaledVector(_u, g * 0.9);

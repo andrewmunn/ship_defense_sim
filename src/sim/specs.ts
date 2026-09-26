@@ -141,6 +141,11 @@ export interface InterceptorSpec {
   /** Drag coefficient * area / mass  (1/m) at sea level density. */
   dragK: number;
   maxG: number;
+  /**
+   * Thrust-vector authority (g) for the pitch-over out of the cell, before the fins have the airspeed
+   * to turn the missile: how quickly it can swing onto a low, close target.
+   */
+  turnoverG: number;
   minRange: number;
   maxRange: number;
   /** Typical average fly-out speed (m/s): only the first guess for fire control, which times shots from the fly-out model (flyout.ts). */
@@ -164,10 +169,11 @@ export const INTERCEPTORS: Record<InterceptorType, InterceptorSpec> = {
     model: 'halberd',
     length: 4.72,
     diameter: 0.343,
-    motor: [[T(5.5), 200], [T(16), 38]],
+    motor: [[T(5.5), 170], [T(16), 34]],
     boosterSep: T(0),
     dragK: DRAG(0.000024),
     maxG: 30,
+    turnoverG: 25,
     minRange: L(2500),
     maxRange: L(60000),
     avgSpeed: V(1050),
@@ -186,18 +192,19 @@ export const INTERCEPTORS: Record<InterceptorType, InterceptorSpec> = {
     model: 'glaive',
     length: 6.6,
     diameter: 0.53,
-    motor: [[T(5.5), 170], [T(6), 105], [T(18), 26]],
-    boosterSep: T(5.5),
+    motor: [[T(8), 100], [T(6), 95], [T(18), 24]],
+    boosterSep: T(8),
     dragK: DRAG(0.000022),
-    maxG: 32,
-    minRange: L(3000),
+    maxG: 22,
+    turnoverG: 12,
+    minRange: L(8000),
     maxRange: L(110000),
     avgSpeed: V(1250),
     lethalRadius: 10,
     semiActive: false,
     terminalTime: T(6),
     perCell: 1,
-    verticalTime: T(0.9),
+    verticalTime: T(1.4),
     basePk: 0.85,
     color: '#7ae0ff',
   },
@@ -208,10 +215,11 @@ export const INTERCEPTORS: Record<InterceptorType, InterceptorSpec> = {
     model: 'stiletto',
     length: 3.66,
     diameter: 0.254,
-    motor: [[T(4.0), 330]],
+    motor: [[T(4.0), 285]],
     boosterSep: T(0),
     dragK: DRAG(0.000033),
     maxG: 45,
+    turnoverG: 30,
     minRange: L(1200),
     maxRange: L(24000),
     avgSpeed: V(940),

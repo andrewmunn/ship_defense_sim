@@ -150,6 +150,7 @@ export class Hud {
     world.events.on('shipHit', (e) => this.banner('IMPACT', `${e.zone.toUpperCase()} · hull ${Math.round(world.ship.hp)}%`, 2.2, true, false));
     world.events.on('sunk', () => this.banner('SHIP LOST', 'Vanguard is sinking', 8, true, false));
     this.log(0, `Scenario "${this.game.cfg.name}" — ${totalThreats(this.game.cfg)} missiles expected. ${this.game.cfg.desc}`, 'info');
+    if (world.raidDelay > 0) this.log(0, `Batteries are out of range for the planned arrival times: the raid is timed ${Math.round(world.raidDelay)} s later (first arrivals ~T+${Math.round(world.firstArrival)} s).`, 'info');
     // coastline for the scope
     this.coast = [];
     const cb = world.cfg.coastBearing * DEG;

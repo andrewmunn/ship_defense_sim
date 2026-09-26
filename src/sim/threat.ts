@@ -140,7 +140,8 @@ export class Threat extends Entity {
     if (this.phase === 'boost' && this.age > s.boostTime) {
       this.phase = 'climb';
     }
-    if ((this.phase === 'climb' || this.phase === 'cruise') && distAim < s.descentRange && this.routeIdx >= this.route.length - 1) {
+    const descentAt = s.terminal === 'dive' ? s.descentRange : Math.max(s.descentRange, this.descentDistance(alt, speed));
+    if ((this.phase === 'climb' || this.phase === 'cruise') && distAim < descentAt && this.routeIdx >= this.route.length - 1) {
       this.phase = s.terminal === 'dive' ? 'dive' : 'descent';
     }
     if (this.phase === 'descent' && Math.abs(alt - this.terminalAlt) < 5 && this.seekerOn) this.phase = 'terminal';
@@ -245,6 +246,20 @@ export class Threat extends Entity {
     const lat = acc.clone().sub(_v.copy(this.vel).normalize().multiplyScalar(acc.dot(_v)));
     const bank = Math.atan2(lat.dot(_t.crossVectors(this.vel, _u).normalize()), GRAVITY) * 0.8;
     quatFromVelocity(this.pos, this.vel, this.quat, THREE.MathUtils.clamp(-bank, -1.3, 1.3));
+  }
+
+  /**
+   * Ground distance a descent from `alt` to skim height needs (m), so a high cruiser is down before it
+   * reaches the target rather than overflying it: a glide at the descent's flight-path limit, then
+   * altitudeHoldDir's exponential flare (time constant 1/(0.3K)) down to ~20 m above skim height.
+   */
+  private descentDistance(alt: number, speed: number) {
+    const gamma = 0.35, tau = 1 / (0.3 * K), done = 20;
+    const dh = alt - this.terminalAlt;
+    const flare = speed * Math.sin(gamma) * tau;
+    if (dh <= done) return 0;
+    if (dh <= flare) return speed * tau * Math.log(dh / done);
+    return 1.1 * ((dh - flare) / Math.tan(gamma) + speed * tau * Math.log(flare / done));
   }
 
   /** Direction combining horizontal heading with a climb/dive angle to reach target altitude. */

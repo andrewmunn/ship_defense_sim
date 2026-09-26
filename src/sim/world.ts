@@ -12,7 +12,7 @@ import { Ciws, Gun, Illuminator } from './mounts';
 import { RoundPool } from './rounds';
 import { Terrain } from './terrain';
 import { WaveField } from './waves';
-import { THREATS, INTERCEPTORS, CIWS_SPEC, GUN_SPEC, InterceptorType, ThreatType } from './specs';
+import { INTERCEPTORS, CIWS_SPEC, GUN_SPEC, InterceptorType, ThreatType } from './specs';
 import type { ScenarioConfig } from './scenario';
 
 export type DetKind = 'intercept' | 'selfdestruct' | 'warhead' | 'shipHit' | 'water' | 'shell' | 'debris' | 'breakup';
@@ -139,6 +139,8 @@ export class World {
   /** Persistent seeker target proxy for the ship (seekers hold a reference to it). */
   shipTarget = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), id: 0, rcs: 9000 };
   firstArrival = Infinity;
+  /** Seconds the whole raid was delayed because the batteries could not make the scenario's planned arrival times. */
+  raidDelay = 0;
 
   constructor(public cfg: ScenarioConfig, public layout: ShipLayout = defaultLayout()) {
     this.rngS = new Rng(cfg.seed * 7919 + 17);
@@ -260,19 +262,21 @@ export class World {
     }
   }
 
-  /** Build the launch schedule: route each missile to arrive from its axis at its planned time. */
+  /**
+   * Build the launch schedule: route each missile to arrive from its axis at its planned time, and
+   * launch it one measured time of flight earlier. When the batteries are too far away for a wave to
+   * make its time, the whole raid slips later together, so waves still arrive as choreographed.
+   */
   private planRaid() {
     const shipV = this.ship.vel.clone();
     this.ship.forward(shipV).multiplyScalar(this.ship.speed);
     let wi = 0;
     for (const w of this.cfg.waves) {
-      const spec = THREATS[w.type];
       for (let k = 0; k < w.count; k++) {
         const axis = w.axes <= 1 ? 0 : k % w.axes;
         const axT = w.axes <= 1 ? 0 : axis / (w.axes - 1) - 0.5;
         const bearing = (this.cfg.coastBearing + axT * 2 * w.fan + this.rngS.gauss() * 3) * DEG;
         const arrival = w.time + k * w.spacing + this.rngS.range(0, 0.3) * w.spacing;
-        const aim = this.ship.pos.clone().addScaledVector(shipV, arrival);
         // choose the site closest to the approach bearing
         let site = 0, bestD = Infinity;
         this.sites.forEach((s, i) => {
@@ -281,30 +285,78 @@ export class World {
           const jitter = this.rngS.range(0, 0.25);
           if (d + jitter < bestD) { bestD = d + jitter; site = i; }
         });
-        const sp = this.sites[site];
-        const route: THREE.Vector3[] = [];
-        // Waypoint on the approach axis at ~45% of the coast distance (dog-leg for multi-axis attacks)
-        const dSite = surfaceDistance(aim, sp);
-        const wpD = Math.min(dSite * 0.55, 22000);
-        const wp = destination(aim, bearing, wpD);
-        const siteBrg = bearingTo(aim, sp);
-        let dB = Math.abs(siteBrg - bearing);
-        if (dB > Math.PI) dB = 2 * Math.PI - dB;
-        if (dB > 4 * DEG) route.push(wp);
-        route.push(aim);
-        let len = 0, prev = sp;
-        for (const p of route) { len += surfaceDistance(prev, p); prev = p; }
-        const climb = w.profile === 'hi' && spec.cruiseAlt > 1000 ? spec.cruiseAlt * 1.2 : 0;
-        const flight = spec.boostTime + (len + climb) / (spec.speed * 0.97) + 4;
-        let time = arrival - flight;
-        if (time < 2 + k * 0.4) time = 2 + k * 0.4 + this.rngS.range(0, 1);
-        this.plan.push({ time, type: w.type, site, route, arrival, profile: w.profile, wave: wi, bearing });
+        const pl: PlannedLaunch = { time: 0, type: w.type, site, route: [], arrival, profile: w.profile, wave: wi, bearing };
+        this.routeLaunch(pl, shipV);
+        pl.time = arrival - this.flightTime(pl);
+        this.plan.push(pl);
       }
       wi++;
+    }
+    // Earliest a battery can fire after the scenario starts (racks erecting, crews on the button).
+    const FIRST_LAUNCH = 3;
+    const slip = FIRST_LAUNCH - Math.min(...this.plan.map((p) => p.time));
+    if (slip > 0) {
+      for (const pl of this.plan) {
+        // the ship is further along its track by the new arrival time: re-aim and re-time
+        pl.arrival += slip;
+        this.routeLaunch(pl, shipV);
+        pl.time = pl.arrival - this.flightTime(pl);
+      }
+      // Re-aiming changed the flight times by a few seconds: absorb that without re-routing again
+      // (the aim point would move only tens of metres).
+      const rest = Math.max(0, FIRST_LAUNCH - Math.min(...this.plan.map((p) => p.time)));
+      for (const pl of this.plan) {
+        pl.arrival += rest;
+        pl.time += rest;
+      }
+      this.raidDelay = slip + rest;
     }
     this.plan.sort((a, b) => a.time - b.time);
     this.totalPlanned = this.plan.length;
     this.firstArrival = Math.min(...this.plan.map((p) => p.arrival), Infinity);
+  }
+
+  /** Route from the launch site to the ship's predicted position at the planned arrival time. */
+  private routeLaunch(pl: PlannedLaunch, shipV: THREE.Vector3) {
+    const aim = this.ship.pos.clone().addScaledVector(shipV, pl.arrival);
+    const sp = this.sites[pl.site];
+    pl.route = [];
+    // Waypoint on the approach axis at ~45% of the coast distance (dog-leg for multi-axis attacks)
+    const dSite = surfaceDistance(aim, sp);
+    const wpD = Math.min(dSite * 0.55, 22000);
+    const wp = destination(aim, pl.bearing, wpD);
+    const siteBrg = bearingTo(aim, sp);
+    let dB = Math.abs(siteBrg - pl.bearing);
+    if (dB > Math.PI) dB = 2 * Math.PI - dB;
+    if (dB > 4 * DEG) pl.route.push(wp);
+    pl.route.push(aim);
+  }
+
+  /**
+   * Time of flight (s) for a planned launch: a ghost missile is flown from the site's rack along the
+   * route with the real threat guidance against a target parked at the aim point, so the schedule
+   * agrees with the missile physics (boost, climb, terrain following, descent, terminal manoeuvres)
+   * however the threats are tuned.
+   */
+  private flightTime(pl: PlannedLaunch) {
+    const m = new Threat(pl.type);
+    this.rackThreat(m, pl, this.launchers.find((l) => l.site === pl.site)!.pos);
+    m.fuelTime = Infinity;
+    const tgt = { pos: m.aimPoint.clone(), vel: new THREE.Vector3(), id: -1, rcs: this.shipTarget.rcs };
+    const T = this.terrain;
+    const tH = (x: number, z: number) => T.height(x, z);
+    const dt = 1 / 20;
+    let best = Infinity, tBest = 0;
+    while (m.age < 1800) {
+      m.update(dt, m.age, { ship: tgt, decoys: [] }, tH);
+      const d = m.pos.distanceTo(tgt.pos);
+      if (d < best) {
+        best = d;
+        tBest = m.age;
+      } else if (best < 300 || d > best + 2000) break;
+      if (altitude(m.pos) < -1) break;
+    }
+    return tBest;
   }
 
   log(text: string, level: SimEvents['log']['level'] = 'info') {
@@ -378,9 +430,11 @@ export class World {
 
   private requestIllum = (m: Interceptor) => {
     const cap = this.cfg.doctrine.illumShare;
-    // pick the least-loaded illuminator that can see the target
-    let best: Illuminator | null = null;
-    for (const il of this.illuminators) {
+    // use the illuminator reserved at launch if it can still do the job (the ship may have turned)
+    const planned = this.illuminators[m.plannedIllum];
+    let best: Illuminator | null = planned && planned.enabled && planned.assigned.length < cap && planned.canSee(this.ship, m.target.pos) ? planned : null;
+    // otherwise the least-loaded illuminator that can see the target
+    if (!best) for (const il of this.illuminators) {
       if (!il.enabled || il.assigned.length >= cap) continue;
       if (!il.canSee(this.ship, m.target.pos)) continue;
       if (!best || il.assigned.length < best.assigned.length) best = il;
@@ -669,23 +723,28 @@ export class World {
     }
   }
 
+  /** Put a threat on the rack at `from` for a planned launch: canister exit pitched up ~15–30° toward the route. Returns the launch bearing. */
+  private rackThreat(m: Threat, pl: PlannedLaunch, from: THREE.Vector3) {
+    m.cruiseAlt = pl.profile === 'lo' ? Math.max(12, m.spec.skimAlt * 2) : m.spec.cruiseAlt;
+    const brg = bearingTo(from, pl.route[0]);
+    const dir = bearingDir(from, brg, new THREE.Vector3());
+    upAt(from, _u);
+    const elev = (pl.type === 'asm_subsonic' ? 18 : 30) * DEG;
+    dir.multiplyScalar(Math.cos(elev)).addScaledVector(_u, Math.sin(elev));
+    m.pos.copy(from).addScaledVector(_u, 4).addScaledVector(dir, 5);
+    m.prevPos.copy(m.pos);
+    m.vel.copy(dir).multiplyScalar(40);
+    m.route = pl.route;
+    m.aimPoint.copy(pl.route[pl.route.length - 1]);
+    return brg;
+  }
+
   private launchThreat(pl: PlannedLaunch) {
     const cands = this.launchers.filter((l) => l.site === pl.site);
     const L = cands.sort((a, b) => a.lastFire - b.lastFire)[0];
     const m = new Threat(pl.type);
     m.waveIdx = pl.wave;
-    m.cruiseAlt = pl.profile === 'lo' ? Math.max(12, m.spec.skimAlt * 2) : m.spec.cruiseAlt;
-    // Canister exit: from the launcher, pitched up ~ 15–25°
-    const brg = bearingTo(L.pos, pl.route[0]);
-    const dir = bearingDir(L.pos, brg, new THREE.Vector3());
-    upAt(L.pos, _u);
-    const elev = (pl.type === 'asm_subsonic' ? 18 : 30) * DEG;
-    dir.multiplyScalar(Math.cos(elev)).addScaledVector(_u, Math.sin(elev));
-    m.pos.copy(L.pos).addScaledVector(_u, 4).addScaledVector(dir, 5);
-    m.prevPos.copy(m.pos);
-    m.vel.copy(dir).multiplyScalar(40);
-    m.route = pl.route;
-    m.aimPoint.copy(pl.route[pl.route.length - 1]);
+    const brg = this.rackThreat(m, pl, L.pos);
     m.launchTime = this.t;
     m.fuelTime = (pl.arrival - pl.time) * 1.5 + 30;
     L.lastFire = this.t;

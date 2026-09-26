@@ -12,6 +12,8 @@ export interface Solution {
   tInt: number;
   pip: THREE.Vector3;
   rangeAtInt: number;
+  /** Illuminator reserved for the terminal window (-1 = active seeker, needs none). */
+  illum: number;
 }
 
 const _p = new THREE.Vector3(), _u = new THREE.Vector3();
@@ -23,8 +25,8 @@ const _p = new THREE.Vector3(), _u = new THREE.Vector3();
 export class Bastion {
   inventory: Record<InterceptorType, number> = { halberd: 0, glaive: 0, stiletto: 0 };
   launcherReady = { fwd: 0, aft: 0 };
-  /** Planned semi-active terminal windows (sim time) for illuminator scheduling. */
-  windows: { start: number; end: number; id: number }[] = [];
+  /** Planned semi-active terminal windows (sim time), each reserved on one illuminator. */
+  windows: { start: number; end: number; id: number; il: number }[] = [];
   private nextEval = 0;
   private decoyCool = { port: 0, stbd: 0 };
   shots = 0;
@@ -53,20 +55,33 @@ export class Bastion {
     const rangeAtInt = pip.distanceTo(ship.pos);
     if (rangeAtInt < spec.minRange || rangeAtInt > spec.maxRange) return null;
     if (t > tr.ttg - 0.5) return null; // would arrive after the threat reaches us
-    return { weapon: w, tInt: t, pip, rangeAtInt };
+    return { weapon: w, tInt: t, pip, rangeAtInt, illum: -1 };
   }
 
-  illumCapacity() {
+  /** Terminal illumination window (sim time) for a semi-active shot fired at t that intercepts after tInt. */
+  private termWindow(w: InterceptorType, t: number, tInt: number) {
+    return { start: t + tInt - INTERCEPTORS[w].terminalTime - 0.5, end: t + tInt + 0.5 };
+  }
+
+  /**
+   * Least-booked illuminator that can see the intercept point and has a free slot for the whole
+   * terminal window [a,b], or -1. Only mounts whose arc covers the PIP count: a threat off the bow
+   * can be lit by the forward Lantern alone.
+   */
+  illumFor(pip: THREE.Vector3, a: number, b: number) {
     const W = this.world;
-    return W.illuminators.filter((i) => i.enabled).length * W.cfg.doctrine.illumShare;
-  }
-
-  /** Can a semi-active shot with terminal window [a,b] be supported? */
-  illumAvailable(a: number, b: number) {
-    const cap = this.illumCapacity();
-    let n = 0;
-    for (const w of this.windows) if (w.start < b && w.end > a) n++;
-    return n < cap;
+    const share = W.cfg.doctrine.illumShare;
+    let best = -1, bestN = Infinity;
+    W.illuminators.forEach((il, i) => {
+      if (!il.enabled || !il.canSee(W.ship, pip)) return;
+      let n = 0;
+      for (const w of this.windows) if (w.il === i && w.start < b && w.end > a) n++;
+      if (n < share && n < bestN) {
+        best = i;
+        bestN = n;
+      }
+    });
+    return best;
   }
 
   update(dt: number, t: number) {
@@ -102,7 +117,11 @@ export class Bastion {
         if (!s) continue;
         // Don't waste long-range shots on far-away subsonic threats: prefer Stiletto envelope when it'll come
         if (!fast && w === 'halberd' && s.rangeAtInt > L(30000) && tr.ttg > T(90)) continue;
-        if (INTERCEPTORS[w].semiActive && !this.illumAvailable(t + s.tInt - INTERCEPTORS[w].terminalTime - 0.5, t + s.tInt + 0.5)) continue;
+        if (INTERCEPTORS[w].semiActive) {
+          const win = this.termWindow(w, t, s.tInt);
+          s.illum = this.illumFor(s.pip, win.start, win.end);
+          if (s.illum < 0) continue;
+        }
         sol = s;
         break;
       }
@@ -118,6 +137,12 @@ export class Bastion {
       }
       n = Math.max(1, Math.min(n, 3 - inFlight.length));
       for (let k = 0; k < n; k++) {
+        // each extra salvo round needs its own illuminator slot
+        if (k > 0 && INTERCEPTORS[sol.weapon].semiActive) {
+          const win = this.termWindow(sol.weapon, t, sol.tInt);
+          sol.illum = this.illumFor(sol.pip, win.start, win.end);
+          if (sol.illum < 0) break;
+        }
         if (!this.fire(sol, tr, t, k)) break;
       }
     }
@@ -206,7 +231,10 @@ export class Bastion {
     m.plannedPk = spec.basePk * tr.threat.spec.interceptPkMod;
     tr.engagedBy.push(m);
     tr.shots++;
-    if (spec.semiActive) this.windows.push({ start: t + sol.tInt - spec.terminalTime - 0.5, end: t + sol.tInt + 0.5, id: m.id });
+    if (spec.semiActive) {
+      this.windows.push({ ...this.termWindow(sol.weapon, t, sol.tInt), id: m.id, il: sol.illum });
+      m.plannedIllum = sol.illum;
+    }
     void THREATS;
   }
 }
