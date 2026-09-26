@@ -162,5 +162,3 @@ canvas { display: block; }
 #loading .s { font: 600 12px/1 var(--head); letter-spacing: 0.4em; color: var(--dim); margin-top: 12px; text-transform: uppercase; }
 #loading .p { width: 260px; height: 2px; background: rgba(255,255,255,0.08); margin-top: 28px; overflow: hidden; }
 #loading .p i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.3s; }
-#loading .go { margin-top: 26px; opacity: 0; transition: opacity 0.4s; }
-#loading .go.show { opacity: 1; }

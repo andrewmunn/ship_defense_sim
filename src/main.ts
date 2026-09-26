@@ -95,8 +95,15 @@ async function boot() {
   };
   debrief.onReplay = () => game.restart(game.cfg);
   debrief.onSetup = () => setup.open();
+  const lockShip = () => {
+    director.setActive(false);
+    camMode = 'orbit';
+    game.select(game.world.ship);
+    game.follow(game.world.ship);
+  };
   let debriefShown = false;
-  game.events.on('restart', () => { debriefShown = false; camMode = 'orbit'; });
+  // every run starts with the camera locked on the destroyer
+  game.events.on('restart', () => { debriefShown = false; lockShip(); });
   game.events.on('frame', () => {
     const W = game.world;
     if (W.over && !debriefShown && W.t > (W as any)._overT + 6) {
@@ -171,19 +178,29 @@ async function boot() {
 
   setProgress(1, 'ready');
   game.start();
-  const go = loading.querySelector('.go') as HTMLButtonElement;
-  const begin = () => {
-    loading.classList.add('done');
+  // browsers only allow audio after a user gesture; the first click or key press unlocks it
+  const unlockAudio = () => {
     (window as any).__audioUnlock?.();
-    setTimeout(() => loading.remove(), 900);
+    removeEventListener('pointerdown', unlockAudio, true);
+    removeEventListener('keydown', unlockAudio, true);
   };
-  if (P.has('nointro')) begin();
-  else {
-    go.classList.add('show');
-    go.onclick = begin;
-    addEventListener('keydown', function k(e) { if (e.code === 'Enter') { removeEventListener('keydown', k); if (document.getElementById('loading')) begin(); } });
+  addEventListener('pointerdown', unlockAudio, true);
+  addEventListener('keydown', unlockAudio, true);
+  loading.classList.add('done');
+  setTimeout(() => loading.remove(), 900);
+  if (P.has('nointro')) {
+    if (!P.has('manual')) director.setActive(true);
+    return;
   }
-  if (!P.has('manual')) director.setActive(true);
+  // first load: hold the sim on the scenario menu (cinematic backdrop) until the player commences
+  game.setPaused(true);
+  director.setActive(true);
+  setup.onClose = () => {
+    setup.onClose = () => {};
+    game.setPaused(false);
+    lockShip();
+  };
+  setup.open();
 }
 
 boot();
