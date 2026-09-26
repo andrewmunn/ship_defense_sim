@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { INTERCEPTORS, InterceptorType, THREATS, GUN_SPEC } from './specs';
 import { altitude, upAt } from '../core/geo';
 import { L, T, SPEED_OF_SOUND } from '../core/constants';
-import { flyoutTime } from './flyout';
+import { flyTime, prepareFlyTimes } from './flytime';
 import type { Track } from './radar';
 import type { Interceptor } from './interceptor';
 import type { World } from './world';
@@ -30,11 +30,14 @@ export class Bastion {
   private nextEval = 0;
   private decoyCool = { port: 0, stbd: 0 };
   shots = 0;
-  constructor(private world: World) {}
+  constructor(private world: World) {
+    prepareFlyTimes();
+  }
 
   /**
    * Predict intercept for weapon w against a track (straight-line threat extrapolation), timing the
-   * interceptor's fly-out from its kinematic profile. Null if it can't get there with energy to spare.
+   * interceptor's fly-out from its measured time-of-flight table (flytime.ts). Null if it can't get
+   * there with energy to spare.
    */
   solve(w: InterceptorType, tr: Track): Solution | null {
     const spec = INTERCEPTORS[w];
@@ -48,7 +51,7 @@ export class Bastion {
       pip.copy(tr.estPos).addScaledVector(tr.estVel, t);
       const d = pip.distanceTo(launch);
       const elev = Math.asin(Math.min(1, Math.max(0, altitude(pip) - 12) / Math.max(d, 1)));
-      const fo = flyoutTime(w, d, elev);
+      const fo = flyTime(w, d, elev);
       if (!isFinite(fo.t)) return null;
       t = fo.t;
     }
@@ -61,6 +64,28 @@ export class Bastion {
   /** Terminal illumination window (sim time) for a semi-active shot fired at t that intercepts after tInt. */
   private termWindow(w: InterceptorType, t: number, tInt: number) {
     return { start: t + tInt - INTERCEPTORS[w].terminalTime - 0.5, end: t + tInt + 0.5 };
+  }
+
+  /**
+   * Keep the illuminator schedule honest. A reservation is released once its missile is gone or can
+   * no longer use it, and from mid-course on it slides with the missile's own time-to-go: lofted shots
+   * reach the target well before the launch-time fly-out estimate, and a stale window would otherwise
+   * hold a Lantern for a missile that has already hit or missed, blocking new shots.
+   */
+  private refreshWindows(t: number) {
+    if (!this.windows.length) return;
+    const live = new Map<number, Interceptor>();
+    for (const m of this.world.interceptors) if (m.alive) live.set(m.id, m);
+    this.windows = this.windows.filter((w) => {
+      const m = live.get(w.id);
+      if (!m || m.result !== 'pending') return false;
+      if (m.phase === 'midcourse' || m.phase === 'terminal') {
+        const win = this.termWindow(m.spec.type, t, m.tgo);
+        w.start = win.start;
+        w.end = win.end;
+      }
+      return w.end > t;
+    });
   }
 
   /**
@@ -94,6 +119,7 @@ export class Bastion {
     if (t < this.nextEval) return;
     this.nextEval = t + 0.25;
     if (W.ship.sunk || W.ship.sinking) return;
+    this.refreshWindows(t);
 
     const tracks = W.radar.activeTracks().filter((tr) => tr.cls === 'hostile' && t - tr.hostileTime >= W.cfg.doctrine.reaction * 0.5);
     tracks.sort((a, b) => a.ttg - b.ttg);

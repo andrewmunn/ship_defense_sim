@@ -4,6 +4,10 @@ export class Rng {
   constructor(seed = 1234567) {
     this.s = seed >>> 0;
   }
+  /** Current position in the sequence; `seed(state)` resumes from it. */
+  get state() {
+    return this.s;
+  }
   /** Restart the sequence from `seed` (repeatable runs, e.g. tools/balance.ts). */
   seed(seed: number) {
     this.s = seed >>> 0;

@@ -3,7 +3,8 @@ import { Entity, quatFromVelocity } from './entities';
 import { INTERCEPTORS, InterceptorSpec, InterceptorType } from './specs';
 import { altitude, upAt } from '../core/geo';
 import { GRAVITY, L, T, V, densityRatio, gravityAt } from '../core/constants';
-import { flyoutState, motorAccel, MIN_USEFUL_SPEED } from './flyout';
+import { motorAccel, MIN_USEFUL_SPEED } from './flyout';
+import { flyTime } from './flytime';
 import { rng } from '../core/rng';
 import type { Threat } from './threat';
 import type { Track } from './radar';
@@ -27,6 +28,8 @@ export class Interceptor extends Entity {
   pip = new THREE.Vector3();
   motorOn = true;
   boosterAttached: boolean;
+  /** Where it left the deck (the uplink times the flight from here). */
+  launchPos = new THREE.Vector3();
   /** Launch axis (cell up at launch time). */
   launchUp = new THREE.Vector3();
   thrust = 0;
@@ -48,6 +51,8 @@ export class Interceptor extends Entity {
   plannedPk = 0.8;
   tgo = 0;
   lastAccel = new THREE.Vector3();
+  /** Fly at `pip` as given, without mid-course uplink updates (fire-control time-of-flight tables). */
+  holdPip = false;
   /** Distance to the PIP when mid-course guidance began (sets the loft profile). */
   loftDist = 0;
   private nextUplink = 0;
@@ -66,27 +71,22 @@ export class Interceptor extends Entity {
   }
 
   /**
-   * Mid-course uplink: re-solve the predicted intercept point from the latest radar track, predicting
-   * the rest of this missile's flight from its fly-out profile (scaled to how fast it is actually going).
+   * Mid-course uplink: re-solve the predicted intercept point from the latest radar track. The flight
+   * is timed from the launch point with fire control's measured time-of-flight table (flytime.ts), so
+   * the rest of it takes the table time less the time already flown.
    */
   private uplink(speed: number) {
     const tr = this.track;
     if (tr.lost || tr.dead) return;
-    const elev = Math.max(0, Math.asin(THREE.MathUtils.clamp(_v.copy(this.vel).normalize().dot(upAt(this.pos, _u)), -1, 1)));
-    const now = flyoutState(this.spec.type, elev, this.age);
-    const k = speed / Math.max(now.v, 1);
+    const h0 = altitude(this.launchPos);
     let t = this.pos.distanceTo(tr.estPos) / Math.max(speed, 1);
     for (let i = 0; i < 6; i++) {
       _r.copy(tr.estPos).addScaledVector(tr.estVel, t);
-      const d = _r.distanceTo(this.pos);
-      // time for the missile to cover d from where it is now
-      let lo = 0, hi = T(90);
-      for (let j = 0; j < 24; j++) {
-        const m = (lo + hi) / 2;
-        if ((flyoutState(this.spec.type, elev, this.age + m).s - now.s) * k < d) lo = m;
-        else hi = m;
-      }
-      t = hi;
+      const d = _r.distanceTo(this.launchPos);
+      const elev = Math.asin(THREE.MathUtils.clamp((altitude(_r) - h0) / Math.max(d, 1), 0, 1));
+      const f = flyTime(this.spec.type, d, elev);
+      // beyond the table (out of energy on paper): keep closing at the current speed
+      t = isFinite(f.t) ? Math.max(f.t - this.age, 0.1) : _r.distanceTo(this.pos) / Math.max(speed, 1);
     }
     this.pip.copy(tr.estPos).addScaledVector(tr.estVel, t);
   }
@@ -94,6 +94,7 @@ export class Interceptor extends Entity {
   /** Returns 'detonate' if the proximity fuze fired this step. */
   update(dt: number, requestIllum: (m: Interceptor) => boolean): 'detonate' | 'selfdestruct' | null {
     if (!this.alive) return null;
+    if (this.age === 0) this.launchPos.copy(this.pos);
     this.age += dt;
     const s = this.spec;
     upAt(this.pos, _u);
@@ -106,7 +107,7 @@ export class Interceptor extends Entity {
     if (this.boosterAttached && this.age > s.boosterSep) this.boosterAttached = false;
 
     const tgt = this.target;
-    if ((this.phase === 'turnover' || this.phase === 'midcourse') && this.age >= this.nextUplink) {
+    if (!this.holdPip && (this.phase === 'turnover' || this.phase === 'midcourse') && this.age >= this.nextUplink) {
       this.nextUplink = this.age + UPLINK;
       this.uplink(speed);
     }

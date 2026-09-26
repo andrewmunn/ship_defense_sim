@@ -2,10 +2,10 @@ import { INTERCEPTORS, InterceptorSpec, InterceptorType } from './specs';
 import { DEG, R_PLANET, T, V, densityRatio, gravityAt } from '../core/constants';
 
 /**
- * Kinematic fly-out tables for fire control: each interceptor flown along straight rays at a few
- * elevations with its real motor, drag (exponential atmosphere) and gravity. Bastion plans intercepts
- * from these, and the mid-course uplink uses them to predict the rest of a missile's flight, so the
- * planner always agrees with the missile physics however the motors are tuned.
+ * Kinematic fly-out profiles: each interceptor flown along straight rays at a few elevations with its
+ * real motor, drag (exponential atmosphere) and gravity. The mid-course uplink scales these to the
+ * missile's actual speed to predict the rest of its flight. Launch decisions use flytime.ts instead,
+ * which also captures the loft and mid-course lift these straight rays leave out.
  */
 const ELEVS = [0, 10, 20, 35, 50, 70, 90].map((d) => d * DEG);
 const DT = 0.05;

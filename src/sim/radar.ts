@@ -12,8 +12,11 @@ let nextTn = 7001;
 /** A radar track: the combat system only ever sees these estimates, never the truth. */
 export class Track {
   tn = nextTn++;
+  /** Estimated position now: the filtered position at the last detection, propagated forward. */
   estPos = new THREE.Vector3();
   estVel = new THREE.Vector3();
+  /** Filtered position at the last detection (the alpha-beta filter's state). */
+  private fPos = new THREE.Vector3();
   firm = false;
   cls: TrackClass = 'pending';
   detections = 0;
@@ -41,9 +44,39 @@ export class Track {
   constructor(public threat: Threat, t: number) {
     this.firstDetect = this.lastDetect = t;
     this.estPos.copy(threat.pos);
+    this.fPos.copy(threat.pos);
     this.estVel.copy(threat.vel);
   }
+
+  /** First detection: position only, velocity unknown. */
+  initFilter(meas: THREE.Vector3, t: number) {
+    this.fPos.copy(meas);
+    this.estPos.copy(meas);
+    this.estVel.set(0, 0, 0);
+    this.lastDetect = t;
+  }
+
+  /** Alpha-beta update with a new measurement at time t. */
+  updateFilter(meas: THREE.Vector3, t: number) {
+    const dtm = Math.max(t - this.lastDetect, 0.05);
+    // predict from the filter state at the last detection (not from estPos, which has already been
+    // propagated to now: predicting from it again counted the motion twice and halved the velocity)
+    const pred = _pred.copy(this.fPos).addScaledVector(this.estVel, dtm);
+    const resid = meas.sub(pred);
+    const a = this.detections < 4 ? 0.8 : 0.45, b = this.detections < 4 ? 0.6 : 0.2;
+    this.fPos.copy(pred).addScaledVector(resid, a);
+    this.estVel.addScaledVector(resid, b / dtm);
+    this.estPos.copy(this.fPos);
+    this.lastDetect = t;
+  }
+
+  /** Propagate the estimate to time t between detections. */
+  propagate(t: number) {
+    this.estPos.copy(this.fPos).addScaledVector(this.estVel, t - this.lastDetect);
+  }
 }
+
+const _pred = new THREE.Vector3();
 
 const _up = new THREE.Vector3();
 
@@ -105,20 +138,12 @@ export class Radar {
       if (!tr || tr.lost) {
         if (tr) this.tracks = this.tracks.filter((x) => x !== tr);
         tr = new Track(th, t);
-        tr.estPos.copy(meas);
-        tr.estVel.set(0, 0, 0);
+        tr.initFilter(meas, t);
         this.tracks.push(tr);
         this.byThreat.set(th.id, tr);
         th.trackNumber = tr.tn;
       } else {
-        // alpha-beta filter
-        const dtm = Math.max(t - tr.lastDetect, 0.05);
-        const pred = tr.estPos.clone().addScaledVector(tr.estVel, dtm);
-        const resid = meas.sub(pred);
-        const a = tr.detections < 4 ? 0.8 : 0.45, b = tr.detections < 4 ? 0.6 : 0.2;
-        tr.estPos.copy(pred).addScaledVector(resid, a);
-        tr.estVel.addScaledVector(resid, b / dtm);
-        tr.lastDetect = t;
+        tr.updateFilter(meas, t);
       }
       tr.detections++;
       tr.quality = Math.min(1, tr.quality + 0.25);
@@ -134,9 +159,7 @@ export class Radar {
       // propagate estimate between detections
       if (!tr.lost) {
         const dtm = t - tr.lastDetect;
-        if (dtm > 0) {
-          tr.estPos.addScaledVector(tr.estVel, dt);
-        }
+        if (dtm > 0) tr.propagate(t);
         tr.quality = Math.max(0, tr.quality - dt * 0.15);
         if (dtm > 3.5) tr.lost = true;
       }
