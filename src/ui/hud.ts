@@ -280,7 +280,9 @@ export class Hud {
     const mode = this.hooks.camMode?.() ?? g.rig.mode;
     $('#camchip', this.root).innerHTML = mode === 'cinematic'
       ? `<span>CAM <b>CINEMATIC</b> · <b>${name}</b> · drag / scroll to take control · C toggles</span>`
-      : `<span>CAM <b>${mode}</b> · <b>${name}</b> · V cycles views · C cinematic · H help</span>`;
+      : mode === 'look'
+        ? `<span>CAM <b>LOOK</b> · riding with <b>${name}</b> · drag to look · WASD/E/Q drift · Z back to orbit</span>`
+        : `<span>CAM <b>${mode}</b> · <b>${name}</b> · V cycles views · Z look around · C cinematic · H help</span>`;
   }
 
   // ------------------------------------------------------------------ inspector
@@ -374,7 +376,7 @@ export class Hud {
       body.innerHTML = `<div class="info"></div><div class="btns">
       <button class="btn" data-c="orbit">Orbit</button>
       ${e.kind === 'threat' || e.kind === 'interceptor' ? '<button class="btn" data-c="chase">Chase</button><button class="btn" data-c="nose">Seeker</button>' : ''}
-      ${e.kind === 'ship' ? '<button class="btn" data-c="bridge">Bridge</button><button class="btn" data-c="ciws">CIWS</button><button class="btn" data-c="deck">Deck</button>' : ''}
+      ${e.kind === 'ship' ? '<button class="btn" data-c="bridge">Bridge</button><button class="btn" data-c="ciws">CIWS</button><button class="btn" data-c="wing">Deck</button>' : ''}
       </div>`;
       body.querySelectorAll<HTMLButtonElement>('button[data-c]').forEach((b) => (b.onclick = () => { this.hooks.onClick?.(); this.hooks.setCam?.(b.dataset.c!); }));
     }

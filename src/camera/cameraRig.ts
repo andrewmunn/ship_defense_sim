@@ -13,7 +13,7 @@ export interface Trackable {
   quat?: THREE.Quaternion;
 }
 
-export type CamMode = 'orbit' | 'chase' | 'free' | 'fixed';
+export type CamMode = 'orbit' | 'chase' | 'free' | 'fixed' | 'look';
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _e = new THREE.Vector3(), _n = new THREE.Vector3(), _u = new THREE.Vector3();
 const _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
@@ -39,10 +39,13 @@ export interface FixedMount {
   /** Returns the world position & look target for this frame. */
   get(pos: THREE.Vector3, look: THREE.Vector3, up: THREE.Vector3): boolean;
   fov?: number;
+  /** What the mount rides on: dragging the view keeps the camera riding with it (look mode). */
+  anchor?: Trackable;
 }
 
 /**
- * Camera rig with smooth orbit/follow, chase, free-fly and fixed (first-person / mount) modes.
+ * Camera rig with smooth orbit/follow, chase, free-fly, fixed (first-person / mount) and look modes.
+ * Look mode rides along with a target at a fixed offset while the view turns in place.
  * All angles are in the local East-North-Up frame of the focus point, so the horizon stays level anywhere on the planet.
  */
 export class CameraRig {
@@ -62,8 +65,13 @@ export class CameraRig {
   private lastHeading = 0;
   fixed: FixedMount | null = null;
   fovGoal = 50;
-  // Free-fly state
+  // Free-fly state (also the tether's drift velocity in look mode)
   private freeVel = new THREE.Vector3();
+  // Look state: camera offset from the target as (right, forward, up) metres in its frame, which
+  // is the compass (east/north) or, riding on board, turns with the target's heading.
+  private lookOffset = new THREE.Vector3();
+  private lookTurns = false;
+  private lookHeading = 0;
   keys = new Set<string>();
   /** Shake amplitude (decays). */
   private shake = 0;
@@ -72,6 +80,9 @@ export class CameraRig {
   private blend = 1;
   private blendFrom = new THREE.Vector3();
   private blendFromQ = new THREE.Quaternion();
+  /** This frame's pose before transition blending and shake. */
+  private rawPos = new THREE.Vector3();
+  private rawQ = new THREE.Quaternion();
   groundHeight: (x: number, z: number) => number = () => 0;
   onUserInput: () => void = () => {};
 
@@ -84,7 +95,7 @@ export class CameraRig {
     this.startBlend();
     this.target = t;
     if (opts.mode) this.mode = opts.mode;
-    else if (this.mode === 'fixed' || this.mode === 'free') this.mode = 'orbit';
+    else if (this.mode === 'fixed' || this.mode === 'free' || this.mode === 'look') this.mode = 'orbit';
     this.fixed = null;
     if (t) {
       this.focusGoal.copy(t.pos);
@@ -112,6 +123,61 @@ export class CameraRig {
     this.target = null;
     this.freeVel.set(0, 0, 0);
   }
+  /**
+   * Look around from where the camera is: it keeps its place relative to `t` as `t` moves, and
+   * dragging turns the view. `turns`: the offset and view swing with t's heading (on-board mounts).
+   */
+  setLook(t: Trackable, turns = false) {
+    this.target = t;
+    this.fixed = null;
+    this.mode = 'look';
+    this.lookTurns = turns;
+    this.lookHeading = this.headingOf(t, 0);
+    const h = turns ? this.lookHeading : 0;
+    // Start from the view's own pose, not the on-screen one: if a transition is still blending in,
+    // it carries on and settles into this spot.
+    enuAt(t.pos, _e, _n, _u);
+    const off = _v.copy(this.rawPos).sub(t.pos);
+    const oe = off.dot(_e), on = off.dot(_n);
+    this.lookOffset.set(oe * Math.cos(h) - on * Math.sin(h), oe * Math.sin(h) + on * Math.cos(h), off.dot(_u));
+    enuAt(this.rawPos, _e, _n, _u);
+    const f = _v2.set(0, 0, -1).applyQuaternion(this.rawQ);
+    this.yaw = this.yawGoal = Math.atan2(f.dot(_e), f.dot(_n)) - h;
+    this.pitch = this.pitchGoal = Math.asin(THREE.MathUtils.clamp(f.dot(_u), -1, 1));
+    this.freeVel.set(0, 0, 0);
+  }
+  /** Leave look mode: orbit the target again from wherever the camera now is. */
+  endLook() {
+    const t = this.target;
+    if (this.mode !== 'look' || !t) return;
+    this.startBlend();
+    this.mode = 'orbit';
+    enuAt(t.pos, _e, _n, _u);
+    const off = _v.copy(this.camera.position).sub(t.pos);
+    this.dist = this.distGoal = Math.max(off.length(), 3);
+    this.yaw = this.yawGoal = Math.atan2(off.dot(_e), off.dot(_n));
+    this.pitch = this.pitchGoal = THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp(off.dot(_u) / this.dist, -1, 1)), -0.25, 1.55);
+    this.focus.copy(t.pos);
+    this.focusGoal.copy(t.pos);
+    this.fovGoal = 50;
+  }
+  /** Z: look around from here (riding along with a mount's anchor or the followed target), or back to orbit. */
+  toggleLook() {
+    if (this.mode === 'look') this.endLook();
+    else {
+      const t = this.mode === 'fixed' ? this.fixed?.anchor ?? this.target : this.target;
+      if (t && t.alive) this.setLook(t, this.mode === 'fixed');
+    }
+  }
+  /** Compass heading of a target (rad): from its velocity, else its nose (+z), else `fallback`. */
+  private headingOf(t: Trackable, fallback: number) {
+    const e = new THREE.Vector3(), n = new THREE.Vector3(), u = new THREE.Vector3();
+    enuAt(t.pos, e, n, u);
+    const d = t.vel.lengthSq() > 4 ? t.vel : t.quat ? new THREE.Vector3(0, 0, 1).applyQuaternion(t.quat) : null;
+    if (!d || Math.abs(d.dot(e)) + Math.abs(d.dot(n)) < 1e-6) return fallback;
+    return Math.atan2(d.dot(e), d.dot(n));
+  }
+
   /** Instantly place the orbit (used by the cinematic director for hard cuts). */
   cut(opts: { focus?: THREE.Vector3; yaw?: number; pitch?: number; dist?: number }) {
     if (opts.focus) { this.focus.copy(opts.focus); this.focusGoal.copy(opts.focus); }
@@ -132,11 +198,13 @@ export class CameraRig {
   private bindInput() {
     const el = this.dom;
     let dragging: 0 | 1 | 2 = 0;
+    let altDrag = false;
     let lx = 0, ly = 0;
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     el.addEventListener('pointerdown', (e) => {
       dragging = e.button === 2 || e.shiftKey ? 2 : e.button === 0 ? 1 : 0;
       if (e.button === 1) dragging = 2;
+      altDrag = e.altKey;
       lx = e.clientX; ly = e.clientY;
       el.setPointerCapture(e.pointerId);
     });
@@ -150,8 +218,14 @@ export class CameraRig {
       lx = e.clientX; ly = e.clientY;
       if (Math.abs(dx) + Math.abs(dy) > 0) this.onUserInput();
       const fovK = this.camera.fov / 50;
-      if (this.mode === 'free' || (this.mode === 'fixed' && dragging === 1)) {
-        if (this.mode === 'fixed') this.mode = 'free';
+      // Alt+drag while following, or any drag in a mount view: look around, riding along with it
+      if (altDrag && (this.mode === 'orbit' || this.mode === 'chase') && this.target?.alive) this.setLook(this.target);
+      if (this.mode === 'fixed' && dragging === 1) {
+        const a = this.fixed?.anchor;
+        if (a?.alive) this.setLook(a, true);
+        else this.mode = 'free';
+      }
+      if (this.mode === 'free' || this.mode === 'look') {
         this.yawGoal += dx * 0.0035 * fovK;
         this.pitchGoal = THREE.MathUtils.clamp(this.pitchGoal - dy * 0.0035 * fovK, -1.5, 1.5);
         this.yaw = this.yawGoal; this.pitch = this.pitchGoal;
@@ -180,7 +254,7 @@ export class CameraRig {
         e.preventDefault();
         this.onUserInput();
         const k = Math.exp(e.deltaY * 0.0012);
-        if (this.mode === 'free') {
+        if (this.mode === 'free' || this.mode === 'look') {
           this.fovGoal = THREE.MathUtils.clamp(this.fovGoal * k, 8, 90);
         } else {
           // Zoom toward the point under the cursor when not locked to a target (Supreme Commander style)
@@ -223,7 +297,7 @@ export class CameraRig {
     const cam = this.camera;
     const k = this.keys;
     // keyboard orbit / zoom
-    if (this.mode !== 'free') {
+    if (this.mode !== 'free' && this.mode !== 'look') {
       if (k.has('KeyQ')) this.yawGoal -= dt * 1.2;
       if (k.has('KeyE')) this.yawGoal += dt * 1.2;
       if (k.has('KeyR')) this.distGoal = Math.max(3, this.distGoal * Math.exp(-dt * 1.5));
@@ -242,9 +316,19 @@ export class CameraRig {
 
     if (this.target && !this.target.alive && this.mode === 'chase') this.mode = 'orbit';
 
+    if (this.target && !this.target.alive && this.mode === 'look') {
+      // what we were riding with is gone: stay put and keep looking
+      if (this.lookTurns) this.yaw = this.yawGoal = this.yaw + this.lookHeading;
+      this.mode = 'free';
+      this.freeVel.set(0, 0, 0);
+    }
+
     if (this.mode === 'free') this.updateFree(dt);
+    else if (this.mode === 'look') this.updateLook(dt);
     else if (this.mode === 'fixed' && this.fixed) this.updateFixed(dt);
     else this.updateOrbit(dt);
+    this.rawPos.copy(cam.position);
+    this.rawQ.copy(cam.quaternion);
 
     // fov
     cam.fov = damp(cam.fov, this.fovGoal, 6, dt);
@@ -360,6 +444,40 @@ export class CameraRig {
     cam.position.addScaledVector(this.freeVel, dt);
     cam.up.copy(_u);
     cam.lookAt(_v.copy(cam.position).add(fwd));
+  }
+
+  private updateLook(dt: number) {
+    const cam = this.camera;
+    const k = this.keys;
+    const t = this.target!;
+    if (this.lookTurns) this.lookHeading = this.headingOf(t, this.lookHeading);
+    const h = this.lookTurns ? this.lookHeading : 0;
+    enuAt(t.pos, _e, _n, _u);
+    const fwdAxis = _v.copy(_n).multiplyScalar(Math.cos(h)).addScaledVector(_e, Math.sin(h));
+    const rightAxis = _v2.copy(_e).multiplyScalar(Math.cos(h)).addScaledVector(_n, -Math.sin(h));
+    // W A S D / E Q drift the camera relative to the target, along the view (like free-fly)
+    const cp = Math.cos(this.pitch);
+    const yaw = this.yaw + h;
+    const view = new THREE.Vector3().copy(_n).multiplyScalar(Math.cos(yaw) * cp).addScaledVector(_e, Math.sin(yaw) * cp).addScaledVector(_u, Math.sin(this.pitch));
+    const side = new THREE.Vector3().crossVectors(view, _u).normalize();
+    const acc = new THREE.Vector3();
+    if (k.has('KeyW')) acc.add(view);
+    if (k.has('KeyS')) acc.sub(view);
+    if (k.has('KeyD')) acc.add(side);
+    if (k.has('KeyA')) acc.sub(side);
+    if (k.has('KeyE')) acc.add(_u);
+    if (k.has('KeyQ')) acc.sub(_u);
+    const speed = (k.has('ShiftLeft') || k.has('ShiftRight') ? 5 : 1) * Math.max(10, this.lookOffset.length() * 0.6);
+    if (acc.lengthSq() > 0) acc.normalize().multiplyScalar(speed);
+    dampV(this.freeVel, acc, 4, dt);
+    this.lookOffset.x += this.freeVel.dot(rightAxis) * dt;
+    this.lookOffset.y += this.freeVel.dot(fwdAxis) * dt;
+    this.lookOffset.z += this.freeVel.dot(_u) * dt;
+    cam.position.copy(t.pos).addScaledVector(rightAxis, this.lookOffset.x).addScaledVector(fwdAxis, this.lookOffset.y).addScaledVector(_u, this.lookOffset.z);
+    enuAt(cam.position, _e, _n, _u);
+    const dir = _v.copy(_n).multiplyScalar(Math.cos(yaw) * cp).addScaledVector(_e, Math.sin(yaw) * cp).addScaledVector(_u, Math.sin(this.pitch));
+    cam.up.copy(_u);
+    cam.lookAt(_v2.copy(cam.position).add(dir));
   }
 
   private updateFixed(dt: number) {

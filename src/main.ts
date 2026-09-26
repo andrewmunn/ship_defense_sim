@@ -158,13 +158,14 @@ async function boot() {
         game.setAutoTime(false);
         game.setTimeScale([0.25, 1, 2, 4, 8, 16][+e.code.slice(5) - 1]);
         break;
-      case 'KeyA': if (!e.repeat && game.rig.mode !== 'free' && e.shiftKey) { game.setAutoTime(!game.autoTime); } break;
+      case 'KeyA': if (!e.repeat && game.rig.mode !== 'free' && game.rig.mode !== 'look' && e.shiftKey) { game.setAutoTime(!game.autoTime); } break;
       case 'Tab': cycleThreat(e.shiftKey ? -1 : 1); e.preventDefault(); break;
       case 'KeyI': cycleInterceptor(); break;
       case 'Home': case 'Digit0': director.setActive(false); camMode = 'orbit'; game.select(game.world.ship); game.follow(game.world.ship); break;
       case 'KeyC': director.setActive(!director.active); break;
       case 'KeyV': cycleCam(); break;
       case 'KeyG': director.setActive(false); setCam('free'); break;
+      case 'KeyZ': director.setActive(false); game.rig.toggleLook(); break;
       case 'KeyL': overlay.labelMode = overlay.labelMode === 'all' ? 'threats' : overlay.labelMode === 'threats' ? 'none' : 'all'; break;
       case 'KeyT': overlay.showTruth = !overlay.showTruth; break;
       case 'KeyO': overlay.showHorizon = !overlay.showHorizon; overlay.showEngagements = overlay.showHorizon; break;

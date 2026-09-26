@@ -176,7 +176,8 @@ export class HelpDialog {
   root: HTMLElement;
   constructor() {
     this.root = el(`<div class="modal" id="help"><div class="box" style="width:min(760px,calc(100vw - 32px))"><h2>CONTROLS <small>Esc / H to close</small></h2><div class="inner"><div class="keys">
-      <span><kbd>Left drag</kbd></span><span>Orbit camera (in fixed cams: free-look)</span>
+      <span><kbd>Left drag</kbd></span><span>Orbit camera (in bridge / CIWS / wing / seeker cams: look around, riding along)</span>
+      <span><kbd>Z</kbd> or <kbd>Alt</kbd>+drag</span><span>Look around from where the camera is, still following the target; <kbd>W A S D</kbd> <kbd>E</kbd> <kbd>Q</kbd> drift, wheel zooms, <kbd>Z</kbd> back to orbit</span>
       <span><kbd>Right drag</kbd> / <kbd>Shift</kbd>+drag</span><span>Pan (detaches from target)</span>
       <span><kbd>Wheel</kbd></span><span>Zoom (planet-scale: 3 m → 4000 km)</span>
       <span><kbd>W A S D</kbd></span><span>Pan / fly (free camera); <kbd>Q</kbd> <kbd>E</kbd> rotate, <kbd>R</kbd> <kbd>F</kbd> zoom</span>

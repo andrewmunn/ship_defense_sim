@@ -12,6 +12,7 @@ export function bridgeMount(g: Game): FixedMount {
   const look = new THREE.Vector3();
   return {
     fov: 55,
+    get anchor() { return g.world.ship; },
     get(pos, lk, up) {
       const sv = g.shipView;
       const cam = sv.bridgeCam;
@@ -36,6 +37,7 @@ export function bridgeMount(g: Game): FixedMount {
 export function ciwsMount(g: Game, idx = 0): FixedMount {
   return {
     fov: 50,
+    get anchor() { return g.world.ship; },
     get(pos, lk, up) {
       const c = g.world.ciws[idx];
       const pivot = c.worldPos;
@@ -56,6 +58,7 @@ export function wingMount(g: Game): FixedMount {
   const look = new THREE.Vector3();
   return {
     fov: 42,
+    get anchor() { return g.world.ship; },
     get(pos, lk, up) {
       const ship = g.world.ship;
       const th = nearestThreat(g, 40000);
@@ -77,6 +80,7 @@ export function wingMount(g: Game): FixedMount {
 export function noseMount(g: Game, e: Entity): FixedMount {
   return {
     fov: 60,
+    anchor: e,
     get(pos, lk, up) {
       if (!e.alive) return false;
       const len = (e as any).spec?.length ?? 5;
