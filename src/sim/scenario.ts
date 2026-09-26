@@ -71,31 +71,38 @@ export const PRESETS: ScenarioConfig[] = [
   {
     ...base(),
     name: 'Coastal Raid',
-    desc: 'Six subsonic ASCMs from three coastal batteries, arriving from two axes.',
-    waves: [W(160, 'asm_subsonic', 6, 3, 2, 30)],
+    desc: '32 subsonic ASCMs from three coastal batteries, skimming the sea all the way in on three axes.',
+    waves: [W(160, 'asm_subsonic', 32, 0.7, 3, 30, 'lo')],
   },
   {
     ...base(),
     name: 'Mixed Raid',
-    desc: 'Subsonic skimmers followed by supersonic ramjets diving from altitude.',
-    waves: [W(150, 'asm_subsonic', 8, 2, 3, 40), W(170, 'asm_supersonic', 4, 3, 2, 25)],
+    desc: '22 subsonic skimmers followed by 16 supersonic ramjets diving from altitude.',
+    waves: [W(150, 'asm_subsonic', 22, 1, 3, 40), W(170, 'asm_supersonic', 16, 1, 2, 25)],
   },
   {
     ...base(),
     name: 'Heavy Divers',
-    desc: 'Four heavy Mach 3+ missiles screaming down from 16 km. Glaive territory.',
-    waves: [W(120, 'asm_heavy', 4, 4, 2, 20)],
+    desc: 'Sixteen heavy Mach 3+ missiles screaming down from 16 km. Glaive territory.',
+    waves: [W(120, 'asm_heavy', 16, 4, 2, 20)],
   },
   {
     ...base(),
     name: 'Saturation (TOT)',
-    desc: '32 missiles timed to arrive together from four axes. Can Bastion keep up?',
-    waves: [W(170, 'asm_subsonic', 12, 0.7, 4, 70), W(172, 'asm_supersonic', 12, 1, 3, 50), W(175, 'asm_heavy', 8, 2, 1, 10)],
+    desc: '42 missiles timed to arrive together from four axes. Can Bastion keep up?',
+    waves: [W(170, 'asm_subsonic', 16, 0.7, 4, 70), W(172, 'asm_supersonic', 16, 1, 3, 50), W(175, 'asm_heavy', 10, 2, 1, 10)],
+  },
+  {
+    ...base(),
+    name: 'Night Raid',
+    desc: 'A mixed raid after dark in a rising sea, with supersonic ramjets skimming the waves the whole way.',
+    waves: [W(150, 'asm_subsonic', 8, 2, 3, 50), W(165, 'asm_supersonic', 6, 2, 2, 30, 'lo')],
+    env: { timeOfDay: 22.5, seaState: 4, visibilityKm: 60, clouds: 0.3, windDeg: 200 },
   },
   {
     ...base(),
     name: 'Overwhelm',
-    desc: '64 missiles in three waves. The magazine will run dry. Expect leakers.',
+    desc: '64 missiles in four waves. The magazine will run dry. Expect leakers.',
     sites: 5,
     waves: [
       W(150, 'asm_subsonic', 28, 0.6, 5, 80),
@@ -104,13 +111,6 @@ export const PRESETS: ScenarioConfig[] = [
       W(215, 'asm_subsonic', 14, 0.5, 3, 60, 'lo'),
     ],
     loadout: { ...base().loadout, halberd: 30, glaive: 8, stiletto: 24 },
-  },
-  {
-    ...base(),
-    name: 'Night Raid',
-    desc: 'A mixed raid after dark in a rising sea.',
-    waves: [W(150, 'asm_subsonic', 8, 2, 3, 50), W(165, 'asm_supersonic', 4, 2, 2, 30, 'lo')],
-    env: { timeOfDay: 22.5, seaState: 4, visibilityKm: 60, clouds: 0.3, windDeg: 200 },
   },
 ];
 
