@@ -75,20 +75,38 @@ export class Interceptor extends Entity {
    * is timed from the launch point with fire control's measured time-of-flight table (flytime.ts), so
    * the rest of it takes the table time less the time already flown.
    */
-  private uplink(speed: number) {
+  private uplink() {
     const tr = this.track;
     if (tr.lost || tr.dead) return;
     const h0 = altitude(this.launchPos);
-    let t = this.pos.distanceTo(tr.estPos) / Math.max(speed, 1);
-    for (let i = 0; i < 6; i++) {
+    // How much longer the missile needs to reach where the track will be `t` s from now, beyond `t`
+    // itself (Infinity when that point is out of reach, including too close to turn onto). The
+    // intercept is the first `t` where this drops to zero: scan forward for it, then refine. (An
+    // open-ended guess from the low speed just after launch, or a search that skipped past the
+    // too-close zone, aimed missiles at points beyond the ship and they turned away from the target.)
+    const lag = (t: number) => {
       _r.copy(tr.estPos).addScaledVector(tr.estVel, t);
       const d = _r.distanceTo(this.launchPos);
       const elev = Math.asin(THREE.MathUtils.clamp((altitude(_r) - h0) / Math.max(d, 1), 0, 1));
-      const f = flyTime(this.spec.type, d, elev);
-      // beyond the table (out of energy on paper): keep closing at the current speed
-      t = isFinite(f.t) ? Math.max(f.t - this.age, 0.1) : _r.distanceTo(this.pos) / Math.max(speed, 1);
+      return flyTime(this.spec.type, d, elev).t - this.age - t;
+    };
+    const step = T(0.5), end = T(90);
+    let lo = 0, hi = -1;
+    for (let t = 0; t <= end; t += step) {
+      if (lag(t) <= 0) {
+        hi = t;
+        break;
+      }
+      lo = t;
     }
-    this.pip.copy(tr.estPos).addScaledVector(tr.estVel, t);
+    // no intercept within the missile's flight time: hold the current PIP rather than chase a guess
+    if (hi < 0) return;
+    for (let j = 0; j < 12; j++) {
+      const m = (lo + hi) / 2;
+      if (lag(m) > 0) lo = m;
+      else hi = m;
+    }
+    this.pip.copy(tr.estPos).addScaledVector(tr.estVel, hi);
   }
 
   /** Returns 'detonate' if the proximity fuze fired this step. */
@@ -109,7 +127,7 @@ export class Interceptor extends Entity {
     const tgt = this.target;
     if (!this.holdPip && (this.phase === 'turnover' || this.phase === 'midcourse') && this.age >= this.nextUplink) {
       this.nextUplink = this.age + UPLINK;
-      this.uplink(speed);
+      this.uplink();
     }
     // Relative geometry (uplink uses track estimate; terminal seeker sees truth + noise)
     const useSeeker = this.phase === 'terminal';
