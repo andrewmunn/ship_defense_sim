@@ -4,10 +4,20 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Vanguard — Ship Defense Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/src/ui/style.css" />
 </head>
 <body>
 <div id="app"></div>
+<div id="loading">
+  <div class="t">VANGUARD</div>
+  <div class="s">Bastion air defense simulator</div>
+  <div class="p"><i></i></div>
+  <div class="s msg" style="margin-top:14px;font-size:10px;letter-spacing:0.25em">building ship</div>
+  <button class="btn go">Take station ▶</button>
+</div>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

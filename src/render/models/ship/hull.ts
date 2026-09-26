@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Curve1D, PartBuilder, M, loftRings, latheZ, cylZ, profileSolid, V2, clamp, smooth, DEG, alongY, normalizeGeo } from './geom';
 import {
   LOA, Z_BOW, Z_STERN, Z_STEM_WL, KEEL, TRANSOM_BOTTOM,
-  deckY, hbDeck, hbWL, keelY, secP, flareQ, deadrise, stemY, CAMBER,
+  deckY, hbDeck, hbWL, keelY, secP, flareQ, deadrise, stemY, CAMBER, flareFrac, KNUCKLE_T,
 } from './hulldef';
 
 /** Hull texture v-range (signed girth from the waterline, meters). */
@@ -23,6 +23,7 @@ export const BW_Z0 = 71.0;
 const NB = 60; // underwater ring samples
 const NA = 40; // above-water ring samples
 const NW = 3; // bulwark rows
+const KN_ROW = Math.round(KNUCKLE_T * NA); // above-water row on the knuckle (duplicated)
 
 /** Station z positions: denser at the bow. */
 function stations(): number[] {
@@ -75,12 +76,15 @@ export function section(z: number, out: [number, number, number][] = []) {
   for (let i = 1; i <= NA; i++) {
     const t = i / NA;
     const y = y0 + (yd - y0) * t;
-    const x = w + (d - w) * Math.pow(t, q);
+    const x = w + (d - w) * flareFrac(z, t);
     out.push([x, y, y]);
+    // duplicated knuckle row: the zero-width quad between the twins splits the vertex normals -> crisp knuckle line
+    if (i === KN_ROW) out.push([x, y, y]);
   }
   // bulwark (outer face continues flare upward)
   const bh = bulwarkH(z);
-  const slope = d > 0.01 ? Math.min(1.2, (q * (d - w)) / Math.max(yd - y0, 0.5)) * 0.55 : 0;
+  const slope = d > 0.01 ? Math.min(1.2, ((d - w) * (flareFrac(z, 1) - flareFrac(z, 0.97))) / 0.03 / Math.max(yd - y0, 0.5)) * 0.8 : 0;
+  void q;
   for (let i = 1; i <= NW; i++) {
     const h = (bh * i) / NW;
     out.push([d + slope * h, yd + h, yd + h]);
@@ -90,7 +94,7 @@ export function section(z: number, out: [number, number, number][] = []) {
 
 export function buildHull(pb: PartBuilder) {
   const zs = stations();
-  const ringN = NB + 1 + NA + NW;
+  const ringN = NB + 1 + NA + 1 + NW;
   const ns = zs.length;
   const pos = new Float32Array(ns * ringN * 3);
   const uv = new Float32Array(ns * ringN * 2);
@@ -137,7 +141,7 @@ export function buildHull(pb: PartBuilder) {
   // ---- transom (flat, at Z_STERN)
   {
     section(Z_STERN, ring);
-    const pts: [number, number, number][] = ring.slice(0, NB + 1 + NA).map((r) => [r[0], r[1], r[2]]);
+    const pts: [number, number, number][] = ring.slice(0, NB + 1 + NA + 1).map((r) => [r[0], r[1], r[2]]);
     const tp: number[] = [];
     const tuv: number[] = [];
     const ti: number[] = [];

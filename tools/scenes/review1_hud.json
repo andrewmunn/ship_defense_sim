@@ -1,0 +1,11 @@
+{ "url": "/?scenario=saturationtot&nointro&manual", "steps": [
+  {"wait": 800},
+  {"eval": "director.setActive(false); T.until(()=>game.world.threats.filter(t=>t.alive&&t.detected!==false).length>=12 && game.world.interceptors.filter(m=>m.alive).length>4, 400, 0.1); T.orbitShip(2.4, 0.35, 2500, 50); game.advance(0.1); T.pause(); JSON.stringify([game.world.t, game.world.threats.filter(t=>t.alive).length, game.world.interceptors.filter(t=>t.alive).length])"},
+  {"wait": 1800}, {"shot": "shots/review1/h03_sat_hud_2500m.png"},
+  {"eval": "game.setPaused(false); T.until(()=>game.world.ciws.some(c=>c.firing), 200, 0.05); game.advance(0.5); T.orbitShip(2.0, 0.25, 1200, 50); game.advance(0.05); T.pause(); JSON.stringify([game.world.t, game.world.threats.filter(t=>t.alive).length, game.world.interceptors.filter(t=>t.alive).length])"},
+  {"wait": 1800}, {"shot": "shots/review1/h04_sat_hud_terminal_1200m.png"},
+  {"eval": "game.setPaused(false); T.orbitShip(2.4, 1.2, 30000, 50); game.advance(0.05); T.pause(); null"},
+  {"wait": 1800}, {"shot": "shots/review1/h05_sat_hud_30km_high.png"},
+  {"eval": "game.setPaused(false); T.orbitShip(2.4, 1.3, 120000, 50); game.advance(0.05); T.pause(); null"},
+  {"wait": 1800}, {"shot": "shots/review1/h06_120km_strategic.png"}
+]}

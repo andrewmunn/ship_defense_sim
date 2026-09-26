@@ -1,0 +1,11 @@
+{ "url": "/?scenario=overwhelm&nointro&manual", "steps": [
+  {"wait": 800},
+  {"eval": "director.setActive(false); T.hideHud(); T.until(()=>game.world.stats.hits>0, 400, 0.05); game.advance(0.25); T.orbitShip(2.2, 0.12, 220, 45); T.pause(); JSON.stringify([game.world.t, game.world.ship.hp])"},
+  {"wait": 1500}, {"shot": "shots/review1/f01_hit_moment.png"},
+  {"eval": "game.setPaused(false); game.advance(8); T.orbitShip(2.0, 0.18, 170, 45); T.pause(); JSON.stringify([game.world.t, game.world.ship.hp])"},
+  {"wait": 1500}, {"shot": "shots/review1/f02_hit_fire_smoke.png"},
+  {"eval": "game.setPaused(false); T.until(()=>game.world.ship.sinking || game.world.t>300, 200, 0.1); game.advance(15); T.orbitShip(2.6, 0.15, 400, 45); T.pause(); JSON.stringify([game.world.t, game.world.ship.hp, game.world.ship.sinking])"},
+  {"wait": 1500}, {"shot": "shots/review1/f03_burning_wide.png"},
+  {"eval": "game.setPaused(false); T.orbitShip(1.0, 0.08, 90, 45); game.advance(0.05); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/f04_damage_close.png"}
+]}

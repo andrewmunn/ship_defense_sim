@@ -1,0 +1,33 @@
+{
+ "url": "/?scenario=mixedraid&nointro&manual",
+ "steps": [
+  {
+   "wait": 600
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.atm.setState({timeOfDay:16.4}); game.setPaused(false); F(0,11,8,-0.55,0.1,95,40); game.advance(0.1); T.pause(); null",
+   "wait": 1500,
+   "shot": "shots/shipv2/it5/hero_day.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.atm.setState({timeOfDay:16.4}); game.setPaused(false); F(0,8,40,-0.9,0.08,55,42); game.advance(0.1); T.pause(); null",
+   "wait": 1500,
+   "shot": "shots/shipv2/it5/hero_bow.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.atm.setState({timeOfDay:16.4}); game.setPaused(false); F(0,9,-38,-1.9,0.18,55,42); game.advance(0.1); T.pause(); null",
+   "wait": 1500,
+   "shot": "shots/shipv2/it5/hero_aft.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.atm.setState({timeOfDay:16.4}); game.setPaused(false); F(3,16,22,-0.8,0.12,30,45); game.advance(0.1); T.pause(); null",
+   "wait": 1500,
+   "shot": "shots/shipv2/it5/hero_bridge.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.atm.setState({timeOfDay:22.5}); game.setPaused(false); F(0,16,22,-0.7,0.1,40,45); game.advance(0.1); T.pause(); null",
+   "wait": 1500,
+   "shot": "shots/shipv2/it5/night_bridge.png"
+  }
+ ]
+}

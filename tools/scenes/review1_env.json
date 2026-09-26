@@ -1,0 +1,13 @@
+{ "url": "/?scenario=coastalraid&nointro&manual", "steps": [
+  {"wait": 800},
+  {"eval": "director.setActive(false); T.hideHud(); game.atm.setState({timeOfDay: 18.7}); game.advance(20); T.orbitShip(0.3, 0.06, 260, 40); T.pause(); JSON.stringify(game.world.sites?.map(s=>s.pos))"},
+  {"wait": 1800}, {"shot": "shots/review1/e01_sunset_ship.png"},
+  {"eval": "game.setPaused(false); game.atm.setState({timeOfDay: 7.2}); T.orbitShip(3.3, 0.03, 180, 40); game.advance(0.1); T.pause(); null"},
+  {"wait": 1800}, {"shot": "shots/review1/e02_dawn_ship_lowcam.png"},
+  {"eval": "game.setPaused(false); game.atm.setState({timeOfDay: 12.5}); const b=game.cfg.coastBearing*Math.PI/180; T.orbitShip(0,0,1,50); game.rig.cut({focus:game.world.ship.pos.clone(), yaw: b+Math.PI, pitch:0.25, dist:10000}); game.advance(0.1); T.pause(); null"},
+  {"wait": 1800}, {"shot": "shots/review1/e03_noon_10km_to_coast.png"},
+  {"eval": "game.setPaused(false); game.rig.cut({pitch:0.6, dist:50000}); game.advance(0.1); T.pause(); null"},
+  {"wait": 1800}, {"shot": "shots/review1/e04_50km_alt.png"},
+  {"eval": "game.setPaused(false); game.rig.cut({pitch:0.9, dist:100000}); game.advance(0.1); T.pause(); null"},
+  {"wait": 1800}, {"shot": "shots/review1/e05_100km_alt.png"}
+]}

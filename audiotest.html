@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Vanguard — Audio Test</title>
+<style>
+  :root { --bg:#0c1014; --panel:#141a20; --line:#253039; --fg:#cfd8df; --dim:#7d8b96; --acc:#5ec3ff; --warn:#ffb14a; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:12px/1.4 ui-monospace, Menlo, monospace; }
+  h1 { font-size:14px; letter-spacing:.2em; margin:12px 16px; color:var(--acc); }
+  #grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap:10px; padding:0 16px 16px; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:10px 12px; }
+  section h2 { margin:0 0 8px; font-size:11px; letter-spacing:.15em; color:var(--dim); text-transform:uppercase; }
+  label { display:flex; align-items:center; gap:8px; margin:4px 0; }
+  label span.k { width:96px; color:var(--dim); flex:none; }
+  label span.v { width:86px; text-align:right; flex:none; }
+  input[type=range] { flex:1; min-width:0; }
+  button { background:#1d2730; color:var(--fg); border:1px solid #33414d; border-radius:4px; padding:4px 8px; margin:2px; font:inherit; cursor:pointer; }
+  button:hover { border-color:var(--acc); }
+  button.hot { border-color:var(--warn); color:var(--warn); }
+  .btns { display:flex; flex-wrap:wrap; }
+  pre { margin:0; white-space:pre-wrap; font-size:11px; color:#aebbc5; }
+  table { border-collapse:collapse; width:100%; font-size:11px; }
+  td, th { padding:1px 4px; text-align:right; border-bottom:1px solid #1e272f; }
+  th { color:var(--dim); font-weight:normal; }
+  #start { position:fixed; inset:0; background:rgba(5,8,10,.85); display:flex; align-items:center; justify-content:center; z-index:10; }
+  #start button { font-size:16px; padding:14px 28px; }
+</style>
+</head>
+<body>
+<div id="start"><button id="startBtn">Click to start audio ▶</button></div>
+<h1>VANGUARD · AUDIO TEST BENCH</h1>
+<div id="grid"></div>
+<script type="module" src="/src/dev/audioDev.ts"></script>
+</body>
+</html>

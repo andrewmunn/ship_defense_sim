@@ -183,6 +183,11 @@ export class CameraRig {
         if (this.mode === 'free') {
           this.fovGoal = THREE.MathUtils.clamp(this.fovGoal * k, 8, 90);
         } else {
+          // Zoom toward the point under the cursor when not locked to a target (Supreme Commander style)
+          if (!this.target && this.mode === 'orbit' && k < 1) {
+            const hit = this.seaPointUnder(e.clientX, e.clientY);
+            if (hit && hit.distanceTo(this.camera.position) < this.dist * 6) this.focusGoal.lerp(hit, 1 - k);
+          }
           this.distGoal = THREE.MathUtils.clamp(this.distGoal * k, 3, 4.0e6);
           if (this.mode === 'fixed') this.fovGoal = THREE.MathUtils.clamp(this.fovGoal * k, 5, 90);
         }
@@ -195,6 +200,22 @@ export class CameraRig {
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
     addEventListener('blur', () => this.keys.clear());
+  }
+
+  /** Ray from the camera through a screen point, intersected with the sea-level sphere. */
+  seaPointUnder(x: number, y: number): THREE.Vector3 | null {
+    const cam = this.camera;
+    const r = this.dom.getBoundingClientRect();
+    const ndc = new THREE.Vector3(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1, 0.5);
+    const dir = ndc.unproject(cam).sub(cam.position).normalize();
+    const R = 1_000_000;
+    const c = new THREE.Vector3(cam.position.x, cam.position.y + R, cam.position.z);
+    const b = c.dot(dir);
+    const disc = b * b - (c.lengthSq() - R * R);
+    if (disc < 0) return null;
+    const t = -b - Math.sqrt(disc);
+    if (t <= 0) return null;
+    return cam.position.clone().addScaledVector(dir, t);
   }
 
   update(dtReal: number) {

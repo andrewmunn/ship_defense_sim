@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Trackable } from '../camera/cameraRig';
 import { upAt, setAltitude, bearingDir, altitude, enuAt } from '../core/geo';
-import { GRAVITY, RHO0, SCALE_HEIGHT } from '../core/constants';
+import { RHO0, densityRatio, gravityAt } from '../core/constants';
 import type { WaveField } from './waves';
 
 let nextId = 1;
@@ -39,7 +39,7 @@ export function quatFromVelocity(pos: THREE.Vector3, v: THREE.Vector3, out: THRE
 }
 
 export function airDensity(alt: number) {
-  return RHO0 * Math.exp(-Math.max(alt, 0) / SCALE_HEIGHT);
+  return RHO0 * densityRatio(alt);
 }
 
 export interface HitBox {
@@ -81,6 +81,8 @@ export class Ship extends Entity {
   localToWorld = new THREE.Matrix4();
   worldToLocal = new THREE.Matrix4();
   hits = 0;
+  /** Heel angle from turning (rad). */
+  turnHeel = 0;
 
   constructor() {
     super();
@@ -115,7 +117,11 @@ export class Ship extends Entity {
     while (dh > Math.PI) dh -= Math.PI * 2;
     while (dh < -Math.PI) dh += Math.PI * 2;
     const turnRate = 0.035 * Math.min(1, this.speed / 8); // rad/s
-    this.heading += THREE.MathUtils.clamp(dh, -turnRate * dt, turnRate * dt);
+    const dHead = THREE.MathUtils.clamp(dh, -turnRate * dt, turnRate * dt);
+    this.heading += dHead;
+    // heel outward in a turn (smoothed)
+    const yawRate = dt > 0 ? dHead / dt : 0;
+    this.turnHeel += (-yawRate * this.speed * 0.16 - this.turnHeel) * Math.min(1, dt * 0.6);
     const dmgSlow = 1 - Math.min(0.9, (this.maxHp - this.hp) / this.maxHp);
     const vmax = this.sinking ? 0 : this.targetSpeed * dmgSlow;
     this.speed += THREE.MathUtils.clamp(vmax - this.speed, -0.4 * dt, 0.25 * dt);
@@ -136,7 +142,7 @@ export class Ship extends Entity {
     void e; void n;
     const heaveT = (hc * 2 + hb + hs) / 4;
     const pitchT = Math.atan2(hb - hs, 2 * L) * 0.8;
-    const rollT = Math.atan2(hp - hsb, 2 * B) * 0.35;
+    const rollT = Math.atan2(hp - hsb, 2 * B) * 0.35 + this.turnHeel;
     // second-order responses
     const w0 = 2 * Math.PI / 7.5, z0 = 0.35;
     this.heaveVel += (w0 * w0 * (heaveT - this.heave) - 2 * z0 * w0 * this.heaveVel) * dt;
@@ -222,9 +228,9 @@ export class Debris extends Entity {
     this.age += dt;
     const alt = altitude(this.pos);
     upAt(this.pos, _u);
-    const rho = airDensity(alt) / 1.225;
+    const rho = densityRatio(alt);
     const v = this.vel.length();
-    this.vel.addScaledVector(_u, -GRAVITY * dt);
+    this.vel.addScaledVector(_u, -gravityAt(alt) * dt);
     if (v > 0) this.vel.multiplyScalar(Math.max(0, 1 - this.dragK * rho * v * dt));
     this.pos.addScaledVector(this.vel, dt);
     const dq = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.spin.x * dt, this.spin.y * dt, this.spin.z * dt));

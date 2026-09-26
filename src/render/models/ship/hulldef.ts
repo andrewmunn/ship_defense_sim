@@ -1,4 +1,4 @@
-import { Curve1D, clamp } from './geom';
+import { Curve1D, clamp, smooth } from './geom';
 
 /**
  * Vanguard-class hull definition (meters, ship-local: +Z bow, +Y up, y=0 design waterline, origin midships).
@@ -153,7 +153,26 @@ export function hullXAbove(z: number, y: number) {
   const yd = deckY(z);
   const t = clamp((y - y0) / Math.max(yd - y0, 1e-3), 0, 1);
   const w = hbWL(z), d = hbDeck(z);
-  return w + (d - w) * Math.pow(t, flareQ(z));
+  return w + (d - w) * flareFrac(z, t);
+}
+
+/** Forward knuckle strength (0 aft of midships, 1 over the forward third). */
+export const knuckleK = (z: number) => smooth(clamp((z + 5) / 40, 0, 1));
+/** Knuckle height as a fraction of the freeboard (WL -> deck edge). */
+export const KNUCKLE_T = 0.6;
+/**
+ * Fraction of (deck half-breadth - WL half-breadth) reached at height fraction t of the freeboard.
+ * Aft: smooth flare t^q. Forward: strongly flared lower hull up to a knuckle at KNUCKLE_T, then a much
+ * steeper (nearly straight) topside to the deck edge — gives the bow its visible flare + knuckle line.
+ */
+export function flareFrac(z: number, t: number) {
+  const q = flareQ(z);
+  const base = Math.pow(t, q);
+  const k = knuckleK(z);
+  if (k <= 0) return base;
+  const tk = KNUCKLE_T, fk = 0.84;
+  const kn = t <= tk ? fk * Math.pow(t / tk, 1.35) : fk + ((1 - fk) * (t - tk)) / (1 - tk);
+  return base + (kn - base) * k;
 }
 /** Outward slope dx/dy of the hull side at (z,y) above the waterline. */
 export function hullSlopeAbove(z: number, y: number) {

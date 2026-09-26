@@ -155,15 +155,43 @@ export class Atmosphere {
           float tw = 0.6 + 0.4 * sin(uAtmTime * (2.0 + h * 5.0) + h * 40.0);
           return vec3(0.9, 0.95, 1.0) * s * smoothstep(0.35, 0.0, length(f)) * (h - 0.9965) * 900.0 * tw;
         }
+        // Seen from high altitude: black space with a glowing atmospheric limb (Chapman-ish column).
+        vec3 spaceSky(vec3 dir){
+          vec3 c = uCamPosW - vec3(0.0, -uPlanetR, 0.0);
+          float b = dot(c, dir);
+          float disc = b * b - (dot(c, c) - uPlanetR * uPlanetR);
+          if (disc > 0.0 && -b - sqrt(disc) > 0.0) {
+            // ray hits the planet (only visible where the ocean mesh doesn't reach): analytic sea + haze
+            vec3 hp = c + dir * (-b - sqrt(disc));
+            vec3 n = normalize(hp);
+            float lit = smoothstep(-0.1, 0.4, dot(n, uSunDir));
+            vec3 sea = vec3(0.012, 0.035, 0.07) * (0.25 + 2.5 * lit) + uSkyZenith * 0.25 * lit;
+            float mu = max(dot(n, -dir), 0.0);
+            return mix(uSkyHorizon * 1.1 * lit + uSkyZenith * 0.25 * lit, sea, pow(mu, 0.35));
+          }
+          float tca = max(-b, 0.0);
+          vec3 p = c + dir * tca;
+          float hmin = length(p) - uPlanetR;
+          float tau = 4.0 * exp(-max(hmin, 0.0) / 7000.0);
+          float glow = 1.0 - exp(-tau);
+          vec3 n = normalize(p);
+          float lit = smoothstep(-0.25, 0.3, dot(n, uSunDir));
+          vec3 col = mix(uSkyZenith * 2.2, vec3(0.75, 0.85, 1.0) * 0.9 + uSkyHorizon * 0.3, exp(-max(hmin, 0.0) / 2500.0));
+          // sunset tint at the terminator
+          col = mix(col, uSkyHorizon * 1.3, smoothstep(0.35, 0.0, abs(dot(n, uSunDir))) * 0.5);
+          return col * glow * lit;
+        }
         void main(){
           vec3 dir = normalize(vDir);
           vec3 up = atmUp(uCamPosW);
           float camAlt = atmAlt(uCamPosW);
           vec3 col = skyBase(dir, up, camAlt);
+          float space = smoothstep(6000.0, 70000.0, camAlt);
+          if (space > 0.0) col = mix(col, spaceSky(dir), space);
           float du = dot(dir, up);
           // Stars & moon
-          if (uNight > 0.0) {
-            col += stars(dir) * uNight * smoothstep(-0.02, 0.15, du);
+          if (uNight > 0.0 || space > 0.0) {
+            col += stars(dir) * max(uNight * smoothstep(-0.02, 0.15, du), space * (1.0 - smoothstep(0.0, 0.2, length(col))));
             float mc = dot(dir, uMoonDir);
             col += vec3(0.9, 0.93, 1.0) * smoothstep(0.99985, 0.99992, mc) * 3.0 * uNight;
             col += vec3(0.25, 0.3, 0.4) * pow(max(mc, 0.0), 300.0) * 0.12 * uNight;
@@ -224,7 +252,7 @@ export class Atmosphere {
       envSkyMat.uniforms.uCamMat.value.copy(cam.matrixWorld);
     };
     this.envScene.add(envSky);
-    this.cubeRT = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType, generateMipmaps: false });
+    this.cubeRT = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
     this.cubeCam = new THREE.CubeCamera(1, 10, this.cubeRT);
     this.envScene.add(this.cubeCam);
     this.pmrem = new THREE.PMREMGenerator(renderer);
@@ -281,12 +309,12 @@ export class Atmosphere {
     } else {
       this.keyDir.copy(moon);
       this.sunLight.color.setRGB(0.55, 0.65, 0.9);
-      this.keyIntensity = 0.12 * night;
+      this.keyIntensity = 0.3 * night;
     }
     this.sunLight.intensity = this.keyIntensity;
     this.hemi.color.setRGB(z[0] * 2, z[1] * 2, z[2] * 2);
     this.hemi.groundColor.setRGB(0.02, 0.03, 0.04);
-    this.hemi.intensity = night * 0.6;
+    this.hemi.intensity = night * 0.9;
     this.envDirty = true;
   }
 
@@ -304,6 +332,10 @@ export class Atmosphere {
       cam.left = -r; cam.right = r; cam.top = r; cam.bottom = -r;
       cam.near = 10; cam.far = 4000;
       cam.updateProjectionMatrix();
+      // ~1.5 shadow texels of normal offset kills acne on faces grazing the light
+      const texel = (2 * r) / L.shadow.mapSize.x;
+      L.shadow.normalBias = texel * 1.6;
+      L.shadow.bias = -0.00015;
     }
     L.target.updateMatrixWorld();
     if (this.envDirty) {

@@ -1,0 +1,8 @@
+{ "url": "/?scenario=mixedraid&nointro&manual", "steps": [
+  {"wait": 600},
+  {"eval": "T.hideHud(); game.advance(100); T.orbitShip(2.5, 0.5, 8000, 50); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/p/01_8km.png"},
+  {"eval": "T.orbitShip(2.5, 0.6, 60000, 50); null"}, {"wait": 1500}, {"shot": "shots/p/02_60km.png"},
+  {"eval": "T.orbitShip(2.5, 0.9, 400000, 50); null"}, {"wait": 1500}, {"shot": "shots/p/03_400km.png"},
+  {"eval": "T.orbitShip(2.5, 1.4, 2500000, 50); null"}, {"wait": 1500}, {"shot": "shots/p/04_2500km.png"}
+]}

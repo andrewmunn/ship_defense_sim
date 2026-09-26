@@ -38,7 +38,7 @@ export function createGun(mats: Mats): THREE.Group {
   pb.add('paintDark', cyl(1.45, 1.45, y0, 40), M(0, y0 / 2, -0.4));
   // barrel slot along the glacis (narrow, dark) and access/detail panels
   const glacisAng = Math.atan2(y1 - y0, 3.35 - 0.2);
-  pb.add('paintDark', box(0.34, 0.03, 1.2), M(0, 1.05, 2.15, -glacisAng, 0, 0));
+  pb.add('paintDark', box(0.64, 0.03, 1.3), M(0, 1.05, 2.15, -glacisAng, 0, 0));
   pb.add('paintFine', box(0.7, 1.0, 0.04), M(0.55, 1.35, -2.72, -0.35, 0, 0));
   for (const sx of [1, -1]) {
     pb.add('darkSteel', box(0.04, 0.04, 2.2), M(sx * 1.5, 0.75, -1.2));
@@ -53,10 +53,10 @@ export function createGun(mats: Mats): THREE.Group {
   const eb = new PartBuilder();
   // 5-inch long barrel: gentle taper ~0.30 m -> ~0.20 m OD, plain muzzle
   const L = 7.4;
-  const prof: V2[] = [[0.0, -0.3], [0.2, -0.3], [0.2, 1.2], [0.18, 1.35], [0.165, 2.6], [0.135, 5.0], [0.105, L - 0.12], [0.108, L], [0.064, L], [0.064, L - 0.1], [0.0, L - 0.1]];
+  const prof: V2[] = [[0.0, -0.3], [0.26, -0.3], [0.26, 1.2], [0.235, 1.4], [0.21, 2.6], [0.185, 4.2], [0.16, 6.2], [0.15, L - 0.42], [0.168, L - 0.36], [0.168, L - 0.04], [0.158, L], [0.075, L], [0.075, L - 0.12], [0.0, L - 0.12]];
   eb.addOwned('paintFine', latheZ(prof, 28), undefined, { uvScale: 1 / 3 });
   // tight rubber boot where the barrel leaves the glacis
-  eb.addOwned('rubber', latheZ([[0.17, 1.05], [0.34, 1.12], [0.3, 1.25], [0.33, 1.38], [0.27, 1.5], [0.28, 1.6], [0.17, 1.72]], 24));
+  eb.addOwned('rubber', latheZ([[0.22, 1.0], [0.42, 1.08], [0.37, 1.22], [0.41, 1.36], [0.34, 1.5], [0.35, 1.62], [0.24, 1.78]], 28));
   eb.build(elev, mats, 'gun_elev');
   elev.add(empty('gun_muzzle', 0, 0, L));
   mount.add(elev);
@@ -254,7 +254,12 @@ export function createVLS(prefix: string, modsX: number, modsZ: number, center: 
 export function addDecoyLauncher(pb: PartBuilder, pos: V3, outward: number, idx: number): THREE.Object3D {
   const [x, y, z] = pos;
   const yawM = M(x, y, z, 0, outward > 0 ? Math.PI / 2 : -Math.PI / 2, 0); // local +Z = outboard
-  pb.add('paintFine', box(1.0, 0.35, 0.8), yawM.clone().multiply(M(0, 0.175, 0)));
+  // pedestal: chamfered base plate, trunnion block and blast-deflector back plate
+  pb.add('paintFine', box(1.2, 0.08, 1.0), yawM.clone().multiply(M(0, 0.04, -0.05)));
+  pb.add('paintFine', box(1.0, 0.3, 0.8), yawM.clone().multiply(M(0, 0.23, 0)));
+  pb.add('paintFine', box(1.08, 0.06, 0.88), yawM.clone().multiply(M(0, 0.39, 0)));
+  for (const [bx, bz] of [[-0.52, -0.42], [0.52, -0.42], [-0.52, 0.32], [0.52, 0.32]] as [number, number][]) pb.add('darkSteel', cyl(0.03, 0.03, 0.05, 6), yawM.clone().multiply(M(bx, 0.1, bz)));
+  pb.add('darkSteel', box(0.5, 0.18, 0.1), yawM.clone().multiply(M(0, 0.2, 0.41)));
   let mouth: THREE.Object3D | null = null;
   const tl = 1.25;
   for (let row = 0; row < 2; row++) {
@@ -266,6 +271,12 @@ export function addDecoyLauncher(pb: PartBuilder, pos: V3, outward: number, idx:
       const tip = base.clone().addScaledVector(dir, tl);
       const [g, m] = rod(base, tip, 0.075, 12);
       pb.add('paintFine', g, yawM.clone().multiply(m));
+      // muzzle rim, mid band and breech cap
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      for (const [t, rr, hh, mat] of [[1, 0.092, 0.06, 'paintFine'], [0.45, 0.085, 0.05, 'paintFine'], [0, 0.095, 0.12, 'darkSteel']] as [number, number, number, string][]) {
+        const p = base.clone().addScaledVector(dir, tl * t - (t === 1 ? 0.03 : 0));
+        pb.add(mat, new THREE.CylinderGeometry(rr, rr, hh, 12), yawM.clone().multiply(new THREE.Matrix4().compose(p, q, new THREE.Vector3(1, 1, 1))));
+      }
       pb.add('black', new THREE.CircleGeometry(0.065, 12), yawM.clone().multiply(new THREE.Matrix4().compose(tip.clone().addScaledVector(dir, 0.001), new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir), new THREE.Vector3(1, 1, 1))));
       if (row === 1 && c === 1) {
         const o = new THREE.Object3D();
@@ -276,8 +287,9 @@ export function addDecoyLauncher(pb: PartBuilder, pos: V3, outward: number, idx:
       }
     }
   }
-  // support frame
-  pb.add('paintFine', box(1.0, 0.5, 0.08), yawM.clone().multiply(M(0, 0.55, -0.3)));
+  // support frame: rear plate + side cheeks holding both rows
+  pb.add('paintFine', box(1.0, 0.55, 0.08), yawM.clone().multiply(M(0, 0.62, -0.38)));
+  for (const sx of [1, -1]) pb.add('paintFine', box(0.06, 0.55, 0.7), yawM.clone().multiply(M(sx * 0.47, 0.62, -0.05, -0.5, 0, 0)));
   return mouth!;
 }
 

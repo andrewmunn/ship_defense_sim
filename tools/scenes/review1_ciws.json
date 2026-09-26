@@ -1,0 +1,13 @@
+{ "url": "/?scenario=saturationtot&nointro", "steps": [
+  {"wait": 800},
+  {"eval": "T.hideHud(); T.until(()=>game.world.ciws.some(c=>c.firing), 400, 0.05); game.advance(0.4); const c=game.world.ciws.find(c=>c.firing); window.CI=game.world.ciws.indexOf(c); T.orbitShip(c.yaw + (CI? Math.PI:0) + 2.6, 0.12, 60, 50); game.rig.follow({pos:c.worldPos, vel:game.world.ship.vel, radius:3, alive:true, id:-5},{dist:60}); T.pause(); JSON.stringify([game.world.t, CI])"},
+  {"wait": 1500}, {"shot": "shots/review1/w01_ciws_side.png"},
+  {"eval": "game.setPaused(false); game.rig.setFixed({fov:50,get(p,l,u){const c=game.world.ciws[CI]; const up=c.worldPos.clone().sub(new c.worldPos.constructor(0,-1e6,0)).normalize(); p.copy(c.worldPos).addScaledVector(c.worldDir,-8).addScaledVector(up,2.5); l.copy(c.worldPos).addScaledVector(c.worldDir,150); u.copy(up); return true;}}); game.advance(0.25); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/w02_ciws_shoulder.png"},
+  {"eval": "game.setPaused(false); T.orbitShip(0,0,1,50); game.rig.follow(game.world.ship,{dist:500}); game.rig.cut({focus:game.world.ship.pos.clone(), yaw: game.world.ship.heading+2.0, pitch:0.3, dist:500}); game.advance(0.3); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/w03_ciws_wide.png"},
+  {"eval": "document.getElementById('hud').classList.remove('hidden'); game.setPaused(false); game.rig.cut({focus:game.world.ship.pos.clone(), yaw: game.world.ship.heading+2.4, pitch:0.5, dist:3500}); game.advance(0.2); T.pause(); JSON.stringify([game.world.threats.filter(t=>t.alive).length, game.world.interceptors.filter(t=>t.alive).length])"},
+  {"wait": 1800}, {"shot": "shots/review1/h01_saturation_hud_3km.png"},
+  {"eval": "game.setPaused(false); game.rig.cut({focus:game.world.ship.pos.clone(), yaw: game.world.ship.heading+2.4, pitch:0.9, dist:20000}); game.advance(0.1); T.pause(); null"},
+  {"wait": 1800}, {"shot": "shots/review1/h02_saturation_hud_20km.png"}
+]}

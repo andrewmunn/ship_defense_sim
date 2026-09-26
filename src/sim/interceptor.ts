@@ -1,11 +1,17 @@
 import * as THREE from 'three';
-import { Entity, quatFromVelocity, airDensity } from './entities';
+import { Entity, quatFromVelocity } from './entities';
 import { INTERCEPTORS, InterceptorSpec, InterceptorType } from './specs';
 import { altitude, upAt } from '../core/geo';
-import { GRAVITY, RHO0 } from '../core/constants';
+import { GRAVITY, L, T, V, densityRatio, gravityAt } from '../core/constants';
+import { flyoutState, motorAccel, MIN_USEFUL_SPEED } from './flyout';
 import { rng } from '../core/rng';
 import type { Threat } from './threat';
 import type { Track } from './radar';
+
+/** Guidance gains are authored in 1/s at full scale; they speed up with the compressed timeline. */
+const K = 1 / T(1);
+/** Mid-course uplink interval (s). */
+const UPLINK = T(0.5);
 
 export type InterceptorPhase = 'vertical' | 'turnover' | 'midcourse' | 'terminal' | 'coast' | 'dead';
 
@@ -40,6 +46,9 @@ export class Interceptor extends Entity {
   plannedPk = 0.8;
   tgo = 0;
   lastAccel = new THREE.Vector3();
+  /** Distance to the PIP when mid-course guidance began (sets the loft profile). */
+  loftDist = 0;
+  private nextUplink = 0;
 
   constructor(type: InterceptorType, target: Threat, track: Track) {
     super();
@@ -54,14 +63,30 @@ export class Interceptor extends Entity {
     return this.spec.type;
   }
 
-  private thrustAt(t: number) {
-    let acc = 0;
-    for (const [d, a] of this.spec.motor) {
-      if (t < d) return a;
-      t -= d;
-      acc = 0;
+  /**
+   * Mid-course uplink: re-solve the predicted intercept point from the latest radar track, predicting
+   * the rest of this missile's flight from its fly-out profile (scaled to how fast it is actually going).
+   */
+  private uplink(speed: number) {
+    const tr = this.track;
+    if (tr.lost || tr.dead) return;
+    const elev = Math.max(0, Math.asin(THREE.MathUtils.clamp(_v.copy(this.vel).normalize().dot(upAt(this.pos, _u)), -1, 1)));
+    const now = flyoutState(this.spec.type, elev, this.age);
+    const k = speed / Math.max(now.v, 1);
+    let t = this.pos.distanceTo(tr.estPos) / Math.max(speed, 1);
+    for (let i = 0; i < 6; i++) {
+      _r.copy(tr.estPos).addScaledVector(tr.estVel, t);
+      const d = _r.distanceTo(this.pos);
+      // time for the missile to cover d from where it is now
+      let lo = 0, hi = T(90);
+      for (let j = 0; j < 24; j++) {
+        const m = (lo + hi) / 2;
+        if ((flyoutState(this.spec.type, elev, this.age + m).s - now.s) * k < d) lo = m;
+        else hi = m;
+      }
+      t = hi;
     }
-    return acc;
+    this.pip.copy(tr.estPos).addScaledVector(tr.estVel, t);
   }
 
   /** Returns 'detonate' if the proximity fuze fired this step. */
@@ -72,12 +97,17 @@ export class Interceptor extends Entity {
     upAt(this.pos, _u);
     const alt = altitude(this.pos);
     const speed = this.vel.length();
-    const rho = airDensity(alt) / RHO0;
-    this.thrust = this.thrustAt(this.age);
+    const rho = densityRatio(alt);
+    const g = gravityAt(alt);
+    this.thrust = motorAccel(s, this.age);
     this.motorOn = this.thrust > 0;
     if (this.boosterAttached && this.age > s.boosterSep) this.boosterAttached = false;
 
     const tgt = this.target;
+    if ((this.phase === 'turnover' || this.phase === 'midcourse') && this.age >= this.nextUplink) {
+      this.nextUplink = this.age + UPLINK;
+      this.uplink(speed);
+    }
     // Relative geometry (uplink uses track estimate; terminal seeker sees truth + noise)
     const useSeeker = this.phase === 'terminal';
     const tp = useSeeker ? tgt.pos : this.track.estPos;
@@ -88,13 +118,14 @@ export class Interceptor extends Entity {
     const closingSpeed = Math.max(1, -_r.dot(_vr) / Math.max(range, 1));
     this.tgo = range / closingSpeed;
 
-    // Max lateral acceleration: aero authority falls with dynamic pressure; TVC helps during boost.
-    const q = rho * (speed / 700) ** 2;
+    // Max lateral acceleration: aero authority scales with dynamic pressure (air density × speed²,
+    // normalised to Mach ~2 at sea level), so it fades in the thin air of a loft; TVC helps under power.
+    const q = rho * (speed / V(700)) ** 2;
     const maxA = s.maxG * GRAVITY * Math.min(1, q * 1.6) + (this.motorOn ? 8 * GRAVITY : 0);
 
     const acc = _a.set(0, 0, 0);
     if (this.phase === 'vertical') {
-      acc.addScaledVector(this.launchUp, this.thrust + GRAVITY);
+      acc.addScaledVector(this.launchUp, this.thrust);
       if (this.age > s.verticalTime) this.phase = 'turnover';
     } else {
       // desired direction
@@ -108,7 +139,7 @@ export class Interceptor extends Entity {
         const cmd = new THREE.Vector3().crossVectors(vDir, omega).multiplyScalar(-N * closingSpeed);
         // Seeker noise (glint); worse without illumination for semi-active missiles
         const noiseAmp = this.illuminated || !s.semiActive ? 1.2 : 40;
-        if (rng.chance(dt * 6)) this.seekerNoise.set(rng.gauss(), rng.gauss(), rng.gauss()).multiplyScalar(noiseAmp);
+        if (rng.chance(dt * 6 * K)) this.seekerNoise.set(rng.gauss(), rng.gauss(), rng.gauss()).multiplyScalar(noiseAmp);
         cmd.add(this.seekerNoise);
         cmd.addScaledVector(tgt.lastAccel, 0.5 * N * 0.5);
         // remove along-velocity component
@@ -116,22 +147,26 @@ export class Interceptor extends Entity {
         if (cmd.length() > maxA) cmd.setLength(maxA);
         acc.add(cmd);
         // gravity compensation
-        acc.addScaledVector(_u, GRAVITY * 0.9);
+        acc.addScaledVector(_u, g * 0.9);
         desired = vDir;
       } else {
-        // Mid-course: fly toward the predicted intercept point, lofted for long shots
+        // Mid-course: fly toward the (uplinked) predicted intercept point. Long shots loft into thin air
+        // (less drag), aiming above the PIP by a share of the remaining distance; the loft fades out over
+        // the back half of the fly-out so the missile comes down onto the target's altitude, not over it.
         const toPip = _v.copy(this.pip).sub(this.pos);
         const dPip = toPip.length();
-        const loft = this.phase === 'midcourse' ? Math.min(0.35, dPip / 60000) * Math.min(1, this.tgo / 6) : 0.08;
-        desired = toPip.normalize().addScaledVector(_u, loft).normalize();
+        if (this.phase === 'midcourse' && !this.loftDist) this.loftDist = dPip;
+        const d0 = this.loftDist || dPip;
+        const loft = Math.min(0.3, d0 / L(70000)) * THREE.MathUtils.smoothstep(dPip / d0, 0.35, 0.8);
+        desired = toPip.addScaledVector(_u, loft * dPip).normalize();
         const vDir = _w.copy(this.vel).normalize();
         const err = desired.clone().addScaledVector(vDir, -desired.dot(vDir));
-        const gain = this.phase === 'turnover' ? 6 : 3;
+        const gain = (this.phase === 'turnover' ? 6 : 3) * K;
         const cmd = err.multiplyScalar(gain * speed);
         const lim = this.phase === 'turnover' ? Math.max(maxA, 25 * GRAVITY) : maxA;
         if (cmd.length() > lim) cmd.setLength(lim);
         acc.add(cmd);
-        acc.addScaledVector(_u, GRAVITY * 0.9);
+        acc.addScaledVector(_u, g * 0.9);
         if (this.phase === 'turnover' && desired.dot(vDir) > 0.97) this.phase = 'midcourse';
         if (this.phase === 'midcourse' && this.tgo < s.terminalTime) {
           this.phase = 'terminal';
@@ -153,7 +188,7 @@ export class Interceptor extends Entity {
     const drag = s.dragK * rho * speed * speed * (1 + 0.004 * latG * latG);
     acc.addScaledVector(vd, -drag);
     // Gravity
-    acc.addScaledVector(_u, -GRAVITY);
+    acc.addScaledVector(_u, -g);
     this.lastAccel.copy(acc);
 
     const prevPos = _w.copy(this.pos);
@@ -191,11 +226,11 @@ export class Interceptor extends Entity {
       this.selfDestructAt = this.age + 1.5;
       if (this.result === 'pending') this.result = 'miss';
     }
-    if (!this.motorOn && speed < 350 && this.phase !== 'vertical' && this.selfDestructAt < 0) {
+    if (!this.motorOn && speed < MIN_USEFUL_SPEED && this.phase !== 'vertical' && this.selfDestructAt < 0) {
       this.selfDestructAt = this.age + 0.3;
       if (this.result === 'pending') this.result = 'miss';
     }
-    if (this.age > 90 && this.selfDestructAt < 0) this.selfDestructAt = this.age;
+    if (this.age > T(90) && this.selfDestructAt < 0) this.selfDestructAt = this.age;
     if (alt < -1) {
       this.alive = false;
       this.remove = true;

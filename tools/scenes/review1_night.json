@@ -1,0 +1,11 @@
+{ "url": "/?scenario=nightraid&nointro&manual", "steps": [
+  {"wait": 800},
+  {"eval": "director.setActive(false); T.hideHud(); game.advance(3); T.orbitShip(2.3, 0.1, 160, 45); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/n01_night_ship_idle.png"},
+  {"eval": "game.setPaused(false); T.until(()=>game.world.interceptors.length>3, 400, 0.1); game.advance(1.2); T.orbitShip(2.3, 0.12, 300, 50); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/n02_night_launch.png"},
+  {"eval": "game.setPaused(false); T.until(()=>game.world.ciws.some(c=>c.firing), 300, 0.05); game.advance(0.4); T.orbitShip(1.4, 0.1, 160, 50); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/n03_night_ciws.png"},
+  {"eval": "document.getElementById('hud').classList.remove('hidden'); game.setPaused(false); game.advance(0.3); T.orbitShip(2.0, 0.3, 1500, 50); T.pause(); null"},
+  {"wait": 1800}, {"shot": "shots/review1/n04_night_hud.png"}
+]}

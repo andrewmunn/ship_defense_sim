@@ -1,0 +1,11 @@
+{ "url": "/?scenario=mixedraid&nointro&manual", "steps": [
+  {"wait": 800},
+  {"eval": "director.setActive(false); T.hideHud(); window.FX=(e,back,side,up,fov=40)=>{game.rig.setFixed({fov,get(p,l,u){const d=e.vel.clone().normalize(); const U=new e.pos.constructor(0,1,0); const S=d.clone().cross(U).normalize(); p.copy(e.pos).addScaledVector(d,-back).addScaledVector(S,side).addScaledVector(U,up); l.copy(e.pos).addScaledVector(d,2); u.copy(U); return true;}}); game.rig.fovGoal=fov; game.camera.fov=fov;}; T.until(()=>game.world.threats.some(t=>t.alive&&t.age>20&&t.type==='asm_subsonic'), 400, 0.1); const t=game.world.threats.find(t=>t.alive&&t.age>20&&t.type==='asm_subsonic'); window.TH=t; FX(t, 9, 5, 1.5); game.advance(0.1); T.pause(); JSON.stringify([game.world.t,t.pos.y])"},
+  {"wait": 1500}, {"shot": "shots/review1/x01_subsonic_chase.png"},
+  {"eval": "game.setPaused(false); T.until(()=>game.world.threats.some(t=>t.alive&&t.type==='asm_supersonic'&&t.age>3), 400, 0.1); const t=game.world.threats.find(t=>t.alive&&t.type==='asm_supersonic'&&t.age>3); FX(t, 14, 6, 2); game.advance(0.1); T.pause(); JSON.stringify([game.world.t,t.pos.y, t.vel.length()])"},
+  {"wait": 1500}, {"shot": "shots/review1/x02_supersonic_chase.png"},
+  {"eval": "game.setPaused(false); T.until(()=>game.world.interceptors.some(m=>m.alive&&m.phase==='midcourse'), 400, 0.05); const m=game.world.interceptors.find(m=>m.alive&&m.phase==='midcourse'); FX(m, 12, 5, 2); game.advance(0.1); T.pause(); JSON.stringify([game.world.t, m.type])"},
+  {"wait": 1500}, {"shot": "shots/review1/x03_interceptor_midcourse_chase.png"},
+  {"eval": "game.setPaused(false); const s=game.world.ship; game.rig.setFixed({fov:40,get(p,l,u){const s=game.world.ship; const f=new s.pos.constructor(Math.sin(s.heading),0,Math.cos(s.heading)); p.copy(s.pos).addScaledVector(f,-420).add(new s.pos.constructor(0,35,0)); l.copy(s.pos).add(new s.pos.constructor(0,5,0)); u.set(0,1,0); return true;}}); game.advance(0.1); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/x04_wake_astern.png"}
+]}

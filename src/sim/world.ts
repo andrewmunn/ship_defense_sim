@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Emitter } from '../core/events';
 import { Rng, rng } from '../core/rng';
 import { destination, upAt, altitude, setAltitude, surfaceDistance, bearingTo, bearingDir, enuAt } from '../core/geo';
-import { KNOTS, DEG } from '../core/constants';
+import { KNOTS, DEG, DRAG, SPEED_OF_SOUND } from '../core/constants';
 import { Ship, Debris, Decoy, Launcher, Entity } from './entities';
 import { Threat } from './threat';
 import { Interceptor } from './interceptor';
@@ -417,7 +417,7 @@ export class World {
       th.remove = true;
     } else {
       // Airframe breaks up: the carcass keeps its momentum and may still reach the ship
-      const d = new Debris('carcass', th.spec.model, 1, 0.0006);
+      const d = new Debris('carcass', th.spec.model, 1, DRAG(0.0006));
       d.pos.copy(th.pos);
       d.vel.copy(th.vel);
       d.quat.copy(th.quat);
@@ -488,6 +488,14 @@ export class World {
       const pl = this.plan.shift()!;
       this.launchThreat(pl);
     }
+    // TEL racks: erect ~15 s before their site's next planned launch, stow once the site is spent
+    if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) {
+      for (const L of this.launchers) {
+        const next = this.plan.find((p) => p.site === L.site);
+        if (next && next.time - t < 15) L.erectGoal = 1;
+        else if (!next && t - L.lastFire > 25) L.erectGoal = 0;
+      }
+    }
     for (const L of this.launchers) L.update(dt);
 
     ship.update(dt, t, this.waves);
@@ -506,7 +514,7 @@ export class World {
       m.update(dt, t, { ship: shipTarget, decoys: this.decoys }, tH);
       if (wasBoost && m.spec.booster && m.phase !== 'boost') {
         m.boosterAttached = false;
-        const d = new Debris('booster', 'booster', 1, 0.004);
+        const d = new Debris('booster', 'booster', 1, DRAG(0.004));
         d.pos.copy(m.pos).addScaledVector(m.vel.clone().normalize(), -m.spec.length * 0.45);
         d.vel.copy(m.vel).multiplyScalar(0.92);
         d.quat.copy(m.quat);
@@ -580,7 +588,7 @@ export class World {
           m.result = 'miss';
           if (m.target.alive) {
             m.target.hp -= 1.5;
-            this.log(`${m.spec.short} missed TN ${m.track.tn} (miss ${m.missDist.toFixed(1)} m)`, 'warn');
+            this.log(m.missDist < m.spec.lethalRadius * 0.6 ? `${m.spec.short} detonated ${m.missDist.toFixed(1)} m from TN ${m.track.tn} — target survived` : `${m.spec.short} missed TN ${m.track.tn} (miss ${m.missDist.toFixed(1)} m)`, 'warn');
           }
         }
       } else if (r === 'selfdestruct') {
@@ -653,7 +661,7 @@ export class World {
         this.over = true;
         this.outcome = 'sunk';
         this.events.emit('sunk', {});
-      } else if (!this.plan.length && this.threats.every((x) => !x.alive) && this.stats.launched > 0 && this.debris.every((d) => d.debrisKind !== 'carcass')) {
+      } else if (!ship.sinking && !this.plan.length && this.threats.every((x) => !x.alive) && this.stats.launched > 0 && this.debris.every((d) => d.debrisKind !== 'carcass')) {
         this.over = true;
         this.outcome = 'survived';
         this.log(`RAID DEFEATED — ${this.stats.killed}/${this.stats.launched} killed, ${this.stats.hits} hits taken`, 'good');
@@ -699,7 +707,7 @@ export class World {
       for (const th of near) {
         if (!th.alive) continue;
         const dx = R.px[i] - th.pos.x, dy = R.py[i] - th.pos.y, dz = R.pz[i] - th.pos.z;
-        const reach = 1100 * dt + th.vel.length() * dt + 12;
+        const reach = CIWS_SPEC.muzzleVel * dt + th.vel.length() * dt + 12;
         if (dx * dx + dy * dy + dz * dz > reach * reach) continue;
         const hitT = R.sweptHit(i, th.prevPos, th.pos, S.hitRadius + th.spec.diameter / 2 + th.spec.length * 0.08);
         if (hitT >= 0) {
@@ -757,7 +765,7 @@ export class World {
           if (!th.alive) continue;
           const d = th.pos.distanceTo(p);
           if (d < GUN_SPEC.fuzeRadius * 1.3) {
-            const pk = GUN_SPEC.pkInFuze * (1 - d / (GUN_SPEC.fuzeRadius * 1.3)) * (th.spec.speed > 500 ? 0.4 : 1);
+            const pk = GUN_SPEC.pkInFuze * (1 - d / (GUN_SPEC.fuzeRadius * 1.3)) * (th.spec.speed > 1.5 * SPEED_OF_SOUND ? 0.4 : 1);
             if (rng.chance(pk)) this.killThreat(th, 'ANVIL', 'breakup');
           }
         }

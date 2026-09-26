@@ -1,0 +1,14 @@
+{ "url": "/?scenario=coastalraid&nointro&manual", "steps": [
+  {"wait": 800},
+  {"eval": "T.until(()=>game.world.interceptors.length>0); game.advance(0.5); T.orbitShip(1.9, 0.1, 110, 50); T.pause(); null"},
+  {"wait": 1200}, {"shot": "shots/c/01_vls.png"},
+  {"eval": "game.setPaused(false); game.advance(2.5); const m=game.world.interceptors.find(x=>x.alive); T.orbit(m, game.world.ship.heading+2.5, 0.15, 40, 50); T.pause(); null"},
+  {"wait": 1200}, {"shot": "shots/c/02_climb.png"},
+  {"eval": "game.setPaused(false); T.until(()=>game.world.interceptors.some(m=>m.alive&&m.phase==='terminal'&&m.tgo<0.9),200,0.02); const m=game.world.interceptors.find(m=>m.alive&&m.phase==='terminal'&&m.tgo<0.9); T.orbit(m.target, 0.9, 0.12, 180, 45); game.advance(1.1); T.pause(); null"},
+  {"wait": 1200}, {"shot": "shots/c/03_intercept.png"},
+  {"eval": "game.setPaused(false); game.advance(3); T.pause(); null"},
+  {"wait": 800}, {"shot": "shots/c/04_after.png"},
+  {"eval": "game.setPaused(false); T.orbitShip(2.6, 0.25, 600, 50); game.advance(10); T.pause(); null"},
+  {"wait": 1200}, {"shot": "shots/c/05_wide.png"},
+  {"log": "[game.world.t, game.world.stats, game.fps]"}
+]}

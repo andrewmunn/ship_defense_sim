@@ -1,0 +1,8 @@
+{ "url": "/?scenario=mixedraid&nointro&manual", "steps": [
+  {"wait": 800},
+  {"eval": "T.hideHud(); game.setAutoTime(false); game.setPaused(true); T.orbitShip(0.5, 0.08, 120, 40); null"}, {"wait": 1500}, {"shot": "shots/ship2/a_bowq.png"},
+  {"eval": "T.orbitShip(1.57, 0.02, 170, 35); null"}, {"wait": 1500}, {"shot": "shots/ship2/b_side.png"},
+  {"eval": "T.orbitShip(2.7, 0.25, 110, 40); null"}, {"wait": 1500}, {"shot": "shots/ship2/c_sternq.png"},
+  {"eval": "T.orbitShip(0.9, 0.35, 45, 50); game.rig.follow({pos:game.world.ship.pos.clone().add(new game.world.ship.pos.constructor(0,18,0)),vel:game.world.ship.vel,radius:1,alive:true,id:-9},{dist:45}); null"}, {"wait": 1500}, {"shot": "shots/ship2/d_super.png"},
+  {"eval": "T.orbitShip(-0.4, 0.05, 60, 45); null"}, {"wait": 1500}, {"shot": "shots/ship2/e_bowlow.png"}
+]}

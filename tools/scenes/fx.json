@@ -1,0 +1,15 @@
+{ "url": "/?scenario=coastalraid&nointro&manual", "steps": [
+  {"wait": 600},
+  {"eval": "T.hideHud(); T.until(()=>game.world.interceptors.length>0); const m=game.world.interceptors[0]; const L=game.world.layout; const cells=[...L.vlsFwd,...L.vlsAft]; const p=cells[m.cell].clone().applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:p,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+2.2, 0.25, 45, 50); game.advance(0.25); T.pause(); null"},
+  {"wait": 1200}, {"shot": "shots/c/10_vls_close.png"},
+  {"eval": "game.setPaused(false); game.advance(1.2); T.pause(); null"},
+  {"wait": 900}, {"shot": "shots/c/11_vls_close2.png"},
+  {"eval": "game.setPaused(false); game.advance(4); T.pause(); null"},
+  {"wait": 900}, {"shot": "shots/c/12_vls_smoke.png"},
+  {"eval": "game.setPaused(false); window.__det=null; game.world.events.on('detonation', e=>{ if(!window.__det && (e.kind==='intercept'||e.kind==='warhead')) window.__det={p:e.pos.clone(),t:game.world.t,k:e.kind}; }); T.until(()=>window.__det,200,0.02); const d=window.__det; T.orbit({pos:d.p,vel:new game.world.ship.pos.constructor(),radius:10,alive:true,id:-2}, game.world.ship.heading+1.2, 0.1, 160, 45); game.advance(0.12); T.pause(); JSON.stringify(d.k)"},
+  {"wait": 1200}, {"shot": "shots/c/13_det_a.png"},
+  {"eval": "game.setPaused(false); game.advance(0.6); T.pause(); null"},
+  {"wait": 900}, {"shot": "shots/c/14_det_b.png"},
+  {"eval": "game.setPaused(false); game.advance(3); T.pause(); null"},
+  {"wait": 900}, {"shot": "shots/c/15_det_c.png"}
+]}

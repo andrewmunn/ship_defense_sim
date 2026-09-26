@@ -1,0 +1,9 @@
+{ "url": "/?scenario=saturationtot&nointro&manual", "steps": [
+  {"wait": 800},
+  {"eval": "director.setActive(false); T.hideHud(); T.until(()=>game.world.ciws.some(c=>c.firing), 400, 0.05); game.advance(0.6); const c=game.world.ciws.find(c=>c.firing)||game.world.ciws[0]; window.CC=c; game.rig.setFixed({fov:45,get(p,l,u){const c=CC; const V=c.worldPos.constructor; const d=c.worldDir.clone(); d.y=0; d.normalize(); const S=new V(-d.z,0,d.x); p.copy(c.worldPos).addScaledVector(S,22).addScaledVector(d,-6).add(new V(0,4,0)); l.copy(c.worldPos).addScaledVector(c.worldDir,25); u.set(0,1,0); return true;}}); game.advance(0.05); T.pause(); JSON.stringify([game.world.t, c.firing])"},
+  {"wait": 1500}, {"shot": "shots/review1/w04_ciws_firing_side.png"},
+  {"eval": "game.setPaused(false); game.advance(1.5); T.pause(); JSON.stringify([CC.firing])"},
+  {"wait": 1500}, {"shot": "shots/review1/w05_ciws_firing_side_b.png"},
+  {"eval": "game.setPaused(false); game.rig.setFixed({fov:35,get(p,l,u){const c=CC; const V=c.worldPos.constructor; p.copy(c.worldPos).addScaledVector(c.worldDir,-40).add(new V(0,12,0)); l.copy(c.worldPos).addScaledVector(c.worldDir,900); u.set(0,1,0); return true;}}); game.advance(0.1); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/w06_ciws_downrange.png"}
+]}

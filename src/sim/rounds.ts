@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { R_PLANET, GRAVITY } from '../core/constants';
+import { R_PLANET, GRAVITY, densityRatio } from '../core/constants';
 
 /**
  * Struct-of-arrays pool of small ballistic projectiles (20 mm CIWS rounds, 5-inch shells).
@@ -51,9 +51,10 @@ export class RoundPool {
     return i;
   }
 
-  /** Integrate; gravity toward the planet centre, quadratic drag. */
+  /** Integrate; inverse-square gravity toward the planet centre, quadratic drag in the exponential atmosphere. */
   step(dt: number) {
     const k = this.dragK;
+    const gR2 = GRAVITY * R_PLANET * R_PLANET;
     for (let i = 0; i < this.n; i++) {
       if (!this.alive[i]) continue;
       const x = this.px[i], y = this.py[i], z = this.pz[i];
@@ -61,12 +62,12 @@ export class RoundPool {
       const cy = y + R_PLANET;
       const rr = Math.sqrt(x * x + cy * cy + z * z);
       const alt = rr - R_PLANET;
-      const rho = Math.exp(-Math.max(alt, 0) / 8500);
+      const rho = densityRatio(alt);
       let vx = this.vx[i], vy = this.vy[i], vz = this.vz[i];
       const sp = Math.sqrt(vx * vx + vy * vy + vz * vz);
       const f = Math.max(0, 1 - k * rho * sp * dt);
       vx *= f; vy *= f; vz *= f;
-      const g = GRAVITY * dt / rr;
+      const g = (gR2 * dt) / (rr * rr * rr);
       vx -= x * g; vy -= cy * g; vz -= z * g;
       this.vx[i] = vx; this.vy[i] = vy; this.vz[i] = vz;
       this.px[i] = x + vx * dt; this.py[i] = y + vy * dt; this.pz[i] = z + vz * dt;

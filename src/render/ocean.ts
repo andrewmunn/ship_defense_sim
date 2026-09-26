@@ -8,7 +8,7 @@ import { makeDetailNormalTexture, makeFoamTexture } from './oceanTextures';
 const RING_GROWTH = 1.0245;
 const ANG_SEG = 256;
 const R_MIN = 0.35;
-const R_MAX = 600_000;
+const R_MAX = 995_000; // out to the limb: from orbit the visible cap is almost a hemisphere
 
 function buildRadialGrid() {
   const rings: number[] = [0];
@@ -82,6 +82,8 @@ export class Ocean {
       uFoamMap: { value: null as THREE.Texture | null },
       uFoamMapOn: { value: 0 },
       uFoamMapRect: { value: new THREE.Vector4(0, 0, 1, 1) }, // minX, minZ, 1/sizeX, 1/sizeZ relative to grid center
+      uFoamMap2: { value: null as THREE.Texture | null },
+      uFoamMap2Rect: { value: new THREE.Vector4(0, 0, 1, 1) },
       uLightDir: { value: new THREE.Vector3() },
       uLightCol: { value: new THREE.Vector3() },
       uExplLights: { value: [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()] }, // xyz rel. to grid center, w = radius
@@ -119,6 +121,10 @@ export class Ocean {
           // far away: flatten completely (sub-pixel)
           vec3 gridW = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
           vec2 wxz = gridW.xz + local;
+          // never extend past the planet's equator (seen from orbit the grid would fold into a paraboloid)
+          float wl = length(wxz);
+          float wmax = uPlanetR * 0.9995;
+          if (wl > wmax) { wxz *= wmax / wl; local = wxz - gridW.xz; disp *= 0.0; }
           float d2 = dot(wxz, wxz);
           float sphereY = -d2 / (uPlanetR + sqrt(max(uPlanetR * uPlanetR - d2, 0.0)));
           vec3 rel = vec3(local.x + disp.x, sphereY + disp.y, local.y + disp.z);
@@ -153,6 +159,8 @@ export class Ocean {
         uniform sampler2D uFoamMap;
         uniform float uFoamMapOn;
         uniform vec4 uFoamMapRect;
+        uniform sampler2D uFoamMap2;
+        uniform vec4 uFoamMap2Rect;
         uniform vec3 uLightDir;
         uniform vec3 uLightCol;
         uniform vec4 uExplLights[4];
@@ -202,11 +210,34 @@ export class Ocean {
           vec3 t0 = texture2D(uDetail, uv0).xyz * 2.0 - 1.0;
           vec3 t1 = texture2D(uDetail, uv1).xyz * 2.0 - 1.0;
           vec3 t2 = texture2D(uDetail, uv2).xyz * 2.0 - 1.0;
-          float ss = 0.25 + 0.12 * uSeaState;
+          // very-low-frequency variation (wind gusts / slicks) breaks up tiling at 1–3 km
+          float macro = fbm(vWorld.xz / 1400.0 + vec2(uTime * 0.002, 0.0));
+          float macro2 = fbm(vWorld.xz / 380.0 - vec2(0.0, uTime * 0.004));
+          float gust = 0.55 + 0.9 * smoothstep(0.25, 0.75, macro) * (0.7 + 0.6 * macro2);
+          float ss = (0.25 + 0.12 * uSeaState) * gust;
           vec2 dn = t0.xy * 0.20 * ss * (0.35 + 0.65 * dFade)
                   + mat2(0.8, 0.6, -0.6, 0.8) * t1.xy * 0.20 * ss * dFade
                   + mat2(0.28, -0.96, 0.96, 0.28) * t2.xy * 0.16 * ss * dFade2;
           dn *= uDetailStrength;
+          // Ship wake / splash foam map: r = foam, g = slick (turbulence-damped calm water)
+          vec4 fm = vec4(0.0);
+          float fmEdge = 0.0;
+          if (uFoamMapOn > 0.5) {
+            vec2 fuv = (vRel.xz - uFoamMapRect.xy) * uFoamMapRect.zw;
+            if (all(greaterThan(fuv, vec2(0.0))) && all(lessThan(fuv, vec2(1.0)))) {
+              fm = texture2D(uFoamMap, fuv);
+              fmEdge = smoothstep(0.0, 0.05, min(min(fuv.x, fuv.y), min(1.0 - fuv.x, 1.0 - fuv.y)));
+            }
+            vec2 nuv = (vRel.xz - uFoamMap2Rect.xy) * uFoamMap2Rect.zw;
+            if (all(greaterThan(nuv, vec2(0.0))) && all(lessThan(nuv, vec2(1.0)))) {
+              float e2 = smoothstep(0.0, 0.08, min(min(nuv.x, nuv.y), min(1.0 - nuv.x, 1.0 - nuv.y)));
+              float n2 = texture2D(uFoamMap2, nuv).r * e2;
+              if (fmEdge < 0.01) { fmEdge = 1.0; fm = vec4(0.0); }
+              fm.r = max(fm.r, n2);
+            }
+          }
+          float slick = fm.g * fmEdge;
+          dn *= 1.0 - slick * 0.8;
           N = normalize(N + vec3(dn.x, 0.0, dn.y));
 
           // Curvature: tilt the normal to the local radial up
@@ -229,14 +260,28 @@ export class Ocean {
           vec3 Rv = reflect(-V, N);
           float ru = dot(Rv, up);
           if (ru < 0.0) Rv = normalize(Rv - up * ru * 2.0);
-          vec3 refl = textureCube(uSkyCube, Rv).rgb;
+          // pre-filtered reflection: blur the sky by the unresolved roughness (kills blocky cloud aliasing)
+          float reflLod = clamp(2.0 + (1.0 - dFade) * 2.5 + sqrt(lostVar) * 12.0, 1.0, 6.0);
+          vec3 refl = textureLod(uSkyCube, Rv, reflLod).rgb;
 
           // Sun/moon glitter (GGX, roughness grows with lost sub-pixel wave energy)
           vec3 L = uLightDir;
           vec3 H = normalize(L + V);
-          float rough = clamp(0.035 + sqrt(lostVar) * 0.9 + (1.0 - dFade) * 0.06 + 0.01 * uSeaState, 0.03, 0.4);
+          // Cox–Munk-ish: unresolved slopes widen the lobe with distance and wind
+          float rough = clamp(0.055 + sqrt(lostVar) * 0.9 + (1.0 - dFade) * 0.12 + 0.014 * uSeaState, 0.05, 0.42);
           float NoL = max(dot(N, L), 0.0);
-          float spec = D_GGX(max(dot(N, H), 0.0), rough) * F / max(4.0 * NoV, 0.2) * NoL;
+          float kG = rough * 0.5;
+          float G = (NoV / (NoV * (1.0 - kG) + kG)) * (NoL / (NoL * (1.0 - kG) + kG));
+          float spec = D_GGX(max(dot(N, H), 0.0), rough) * F * G / max(4.0 * NoV, 0.05);
+          // sparkle: break the glitter path into glints near the camera, keep far away smooth
+          // stochastic glints near the camera: sparse, twinkling facets instead of hard patches
+          vec2 gp = local * 3.0 + uDetailOff[2] * 37.0;
+          vec2 gcell = floor(gp);
+          vec2 gf = fract(gp) - 0.5 - (hash22(gcell) - 0.5) * 0.6;
+          float gh = hash12(gcell + floor(uTime * 7.0) * 17.31);
+          float gdot = smoothstep(0.14, 0.0, length(gf)) * step(0.9, gh) * smoothstep(0.35, 0.08, fp);
+          float sparkle = mix(1.0, 0.55 + gdot * 7.0, dFade2 * 0.8);
+          spec = min(spec * sparkle * mix(0.3, 0.8, dFade), 30.0);
           float shadow = 1.0;
           #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0
             shadow = getShadow(directionalShadowMap[0], directionalLightShadows[0].shadowMapSize, directionalLightShadows[0].shadowIntensity, directionalLightShadows[0].shadowBias, directionalLightShadows[0].shadowRadius, vDirectionalShadowCoord[0]);
@@ -248,7 +293,7 @@ export class Ocean {
           vec3 deep = vec3(0.004, 0.018, 0.034);
           vec3 scatterCol = vec3(0.03, 0.14, 0.15);
           float sunUp = clamp(dot(L, up), 0.0, 1.0);
-          vec3 body = deep * (skyAmb * 1.5 + uLightCol * 0.05 * sunUp * shadow);
+          vec3 body = deep * (skyAmb * 1.5 + uLightCol * 0.05 * sunUp * shadow) * (0.85 + 0.3 * macro);
           float crest = clamp(vHeight / (0.3 + 0.4 * uSeaState), 0.0, 1.0);
           float sssView = pow(clamp(dot(V, -L) * 0.5 + 0.5, 0.0, 1.0), 3.0);
           body += scatterCol * uLightCol * 0.018 * (crest * 1.2 + 0.15) * (0.4 + sssView) * shadow * sunUp;
@@ -261,15 +306,13 @@ export class Ocean {
           float foamT2 = texture2D(uFoamTex, w / 7.1 - uDetailOff[0] * 0.5).r;
           float fold = clamp((0.62 - jac) * 2.2, 0.0, 1.0) * smoothstep(1.5, 3.5, uSeaState);
           float foam = fold * smoothstep(0.35, 0.75, foamT * 0.6 + foamT2 * 0.5);
-          if (uFoamMapOn > 0.5) {
-            vec2 fuv = (vRel.xz - uFoamMapRect.xy) * uFoamMapRect.zw;
-            if (all(greaterThan(fuv, vec2(0.0))) && all(lessThan(fuv, vec2(1.0)))) {
-              vec4 fm = texture2D(uFoamMap, fuv);
-              float edge = smoothstep(0.0, 0.05, min(min(fuv.x, fuv.y), min(1.0 - fuv.x, 1.0 - fuv.y)));
-              float f = fm.r * edge;
-              float tex = smoothstep(0.15, 0.85, foamT2 * 0.7 + foamT * 0.5 + f * 0.6 - 0.2);
-              foam = max(foam, clamp(f * 1.4, 0.0, 1.0) * mix(tex, 1.0, clamp(f - 0.6, 0.0, 1.0)));
-            }
+          {
+            float f = fm.r * fmEdge;
+            float foamT3 = texture2D(uFoamTex, w / 2.3 + uDetailOff[2] * 0.2).r;
+            float tex = smoothstep(0.4, 0.95, foamT2 * 0.6 + foamT * 0.45 + foamT3 * 0.3 + f * 0.5 - 0.3);
+            foam = max(foam, clamp(f * 1.3, 0.0, 1.0) * mix(tex, 1.0, clamp(f - 0.8, 0.0, 1.0) * 0.6));
+            // turbulent wake water is lighter, aerated green-blue under the foam
+            col += vec3(0.02, 0.07, 0.07) * f * (skyAmb * 1.2 + uLightCol * 0.02 * sunUp) * (1.0 - F);
           }
           vec3 foamCol = (skyAmb * 0.9 + uLightCol * 0.09 * NoL * shadow + vec3(0.02)) * 0.9;
           col = mix(col, foamCol, clamp(foam, 0.0, 1.0) * 0.92);
@@ -333,7 +376,7 @@ export class Ocean {
     const r2x = 0.28 * cx - 0.96 * cz, r2z = 0.96 * cx + 0.28 * cz;
     offs[2].set(frac(r2x / s2 + t * 0.05), frac(r2z / s2 - t * 0.038));
     u.uLightDir.value.copy(lightDir);
-    u.uLightCol.value.set(lightCol.r, lightCol.g, lightCol.b).multiplyScalar(lightIntensity * 3.0);
+    u.uLightCol.value.set(lightCol.r, lightCol.g, lightCol.b).multiplyScalar(lightIntensity * 2.2);
   }
 }
 

@@ -1,0 +1,19 @@
+{ "url": "/?scenario=coastalraid&nointro", "steps": [
+  {"wait": 800},
+  {"eval": "T.hideHud(); const s=game.world.ship; window.V=s.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; game.advance(2); F(0,10,45, 0.6, 0.25, 40); game.advance(0.1); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/s01_bow_gun_vls.png"},
+  {"eval": "game.setPaused(false); F(0,16,15, 2.2, 0.15, 45); game.advance(0.1); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/s02_superstructure.png"},
+  {"eval": "game.setPaused(false); F(0,28,20, 1.2, 0.05, 30); game.advance(0.1); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/s03_mast.png"},
+  {"eval": "game.setPaused(false); F(0,10,-65, 3.0, 0.35, 45); game.advance(0.1); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/s04_stern_helodeck.png"},
+  {"eval": "game.setPaused(false); F(0,14,32, 0.9, 0.2, 14); game.advance(0.1); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/s05_ciws_fwd.png"},
+  {"eval": "game.setPaused(false); F(0,5,0, 1.57, 0.02, 190, 45); game.advance(0.1); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/s06_waterline_profile.png"},
+  {"eval": "game.setPaused(false); F(0,5,0, 2.5, 0.2, 450, 45); game.advance(0.1); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/s07_mid_range.png"},
+  {"eval": "game.setPaused(false); F(0,5,0, 2.5, 0.12, 2500, 40); game.advance(0.1); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/s08_long_range.png"}
+]}

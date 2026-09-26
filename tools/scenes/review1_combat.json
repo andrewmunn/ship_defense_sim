@@ -1,0 +1,17 @@
+{ "url": "/?scenario=mixedraid&nointro", "steps": [
+  {"wait": 800},
+  {"eval": "T.hideHud(); T.until(()=>game.world.threats.some(t=>t.alive&&t.age>8), 400, 0.1); const t=game.world.threats.find(t=>t.alive&&t.age>8); window.TH=t; const yaw=Math.atan2(t.vel.x,t.vel.z); T.orbit(t, yaw+2.4, 0.08, 14, 45); game.advance(0.05); T.pause(); JSON.stringify([game.world.t, t.type, t.pos])"},
+  {"wait": 1500}, {"shot": "shots/review1/c01_threat_close.png"},
+  {"eval": "game.setPaused(false); T.orbit(TH, Math.atan2(TH.vel.x,TH.vel.z)+3.0, 0.15, 120, 45); game.advance(0.05); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/c02_threat_mid_trail.png"},
+  {"eval": "game.setPaused(false); T.until(()=>game.world.interceptors.length>0, 400, 0.05); game.advance(0.3); const m=game.world.interceptors[0]; T.orbitShip(1.9, 0.12, 120, 50); T.pause(); JSON.stringify([game.world.t])"},
+  {"wait": 1500}, {"shot": "shots/review1/c03_vls_launch.png"},
+  {"eval": "game.setPaused(false); game.advance(1.5); const m=game.world.interceptors.find(x=>x.alive); window.IM=m; T.orbit(m, 1.0, 0.1, 18, 45); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/c04_interceptor_boost_close.png"},
+  {"eval": "game.setPaused(false); game.advance(6); T.orbitShip(2.4, 0.2, 900, 50); T.pause(); JSON.stringify([game.world.interceptors.filter(x=>x.alive).length])"},
+  {"wait": 1500}, {"shot": "shots/review1/c05_launch_smoke_wide.png"},
+  {"eval": "game.setPaused(false); T.until(()=>game.world.interceptors.some(m=>m.alive&&m.phase==='terminal'&&m.tgo<1.2),300,0.02); const m=game.world.interceptors.find(m=>m.alive&&m.phase==='terminal'&&m.tgo<1.2); T.orbit(m.target, 0.9, 0.1, 250, 40); game.advance(1.25); T.pause(); null"},
+  {"wait": 1500}, {"shot": "shots/review1/c06_intercept.png"},
+  {"eval": "game.setPaused(false); game.advance(2.0); T.pause(); null"},
+  {"wait": 1200}, {"shot": "shots/review1/c07_intercept_after.png"}
+]}

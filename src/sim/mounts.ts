@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CIWS_SPEC, GUN_SPEC } from './specs';
-import { GRAVITY } from '../core/constants';
+import { gravityAt, densityRatio, SPEED_OF_SOUND } from '../core/constants';
 import { rng } from '../core/rng';
 import { altitude, upAt } from '../core/geo';
 import type { Ship } from './entities';
@@ -70,23 +70,72 @@ abstract class Mount {
   }
 }
 
+const _rp = new THREE.Vector3(), _rv = new THREE.Vector3(), _tp = new THREE.Vector3(), _d0 = new THREE.Vector3(), _d1 = new THREE.Vector3(), _d2 = new THREE.Vector3(), _d3 = new THREE.Vector3(), _r1 = new THREE.Vector3();
+
 /**
- * Lead solution for a projectile with quadratic drag k (1/m) and muzzle speed v0 against a
- * target at p with velocity v (and optional accel a). Returns time of flight; writes the aim point.
+ * Lead solution for a projectile with quadratic drag k (1/m) and muzzle speed v0, fired from m on a
+ * mount moving at shooterVel (the round inherits it), against a target at p with velocity v (and
+ * optional accel a). Returns time of flight; writes the aim point (the direction to lay the barrel).
+ *
+ * An analytic drag estimate gives the first guess; it is then refined by flying the round through the
+ * same physics as RoundPool (drag in the exponential atmosphere, inverse-square gravity) and shifting
+ * the aim point by the miss at closest approach, like a fire-control computer's ballistic kernel.
  */
-export function leadSolve(m: THREE.Vector3, v0: number, k: number, p: THREE.Vector3, v: THREE.Vector3, a: THREE.Vector3 | null, aim: THREE.Vector3) {
+export function leadSolve(m: THREE.Vector3, v0: number, k: number, p: THREE.Vector3, v: THREE.Vector3, a: THREE.Vector3 | null, aim: THREE.Vector3, shooterVel: THREE.Vector3 | null = null) {
   let t = p.distanceTo(m) / v0;
+  const altM = altitude(m);
+  const target = (tau: number, out: THREE.Vector3) => {
+    out.copy(p).addScaledVector(v, tau);
+    if (a) out.addScaledVector(a, 0.5 * tau * tau);
+    return out;
+  };
   for (let i = 0; i < 6; i++) {
-    aim.copy(p).addScaledVector(v, t);
-    if (a) aim.addScaledVector(a, 0.5 * t * t);
+    target(t, aim);
     const s = aim.distanceTo(m);
-    const x = k * s;
+    // drag in the air along the path (thinner at altitude): density at the mean height
+    const ke = k * densityRatio((altM + altitude(aim)) / 2);
+    const x = ke * s;
     if (x > 5) return Infinity;
-    t = (Math.exp(x) - 1) / (k * v0);
+    t = (Math.exp(x) - 1) / (ke * v0);
   }
-  // gravity compensation
   upAt(aim, _u);
-  aim.addScaledVector(_u, 0.5 * GRAVITY * t * t);
+  aim.addScaledVector(_u, 0.5 * gravityAt((altM + altitude(aim)) / 2) * t * t);
+
+  // Ballistic refinement: fly the round, correct the aim by the miss vector.
+  const h = THREE.MathUtils.clamp(t / 30, 0.002, 1 / 30);
+  for (let it = 0; it < 3; it++) {
+    _rv.copy(aim).sub(m).setLength(v0);
+    if (shooterVel) _rv.add(shooterVel);
+    _rp.copy(m);
+    let best = Infinity, bestT = t;
+    const miss = _d1.set(0, 0, 0);
+    _d0.copy(_rp).sub(target(0, _tp));
+    const tEnd = t * 1.6 + 0.5;
+    for (let tau = 0; tau < tEnd; ) {
+      const alt = altitude(_rp);
+      _rv.multiplyScalar(Math.max(0, 1 - k * densityRatio(alt) * _rv.length() * h));
+      upAt(_rp, _u);
+      _rv.addScaledVector(_u, -gravityAt(alt) * h);
+      _rp.addScaledVector(_rv, h);
+      tau += h;
+      // closest approach within this step (relative motion ~linear over a step)
+      const r1 = _r1.copy(_rp).sub(target(tau, _tp));
+      const dr = _d2.copy(_d0).sub(r1);
+      const f = THREE.MathUtils.clamp(_d0.dot(dr) / Math.max(dr.lengthSq(), 1e-9), 0, 1);
+      const dist = _d3.copy(_d0).lerp(r1, f).length();
+      if (dist < best) {
+        best = dist;
+        bestT = tau - h + f * h;
+        miss.copy(_d3);
+      }
+      if (tau > bestT + 4 * h && dist > best * 1.5) break;
+      _d0.copy(r1);
+    }
+    if (!isFinite(best)) return Infinity;
+    aim.sub(miss);
+    t = bestT;
+    if (best < 0.05) break;
+  }
   return t;
 }
 
@@ -168,7 +217,7 @@ export class Ciws extends Mount {
       if (this.state !== 'reload') this.state = 'track';
       this.lockT += dt;
       // aim
-      const tof = leadSolve(this.muzzle(_p), S.muzzleVel, S.dragK, tgt.pos, tgt.vel, tgt.lastAccel, this.aim);
+      const tof = leadSolve(this.muzzle(_p), S.muzzleVel, S.dragK, tgt.pos, tgt.vel, tgt.lastAccel, this.aim, ship.vel);
       this.tof = tof;
       _d.copy(this.aim).sub(this.worldPos).normalize();
       const ang = this.toLocalAngles(ship, _d);
@@ -176,7 +225,7 @@ export class Ciws extends Mount {
       this.pitchGoal = THREE.MathUtils.clamp(ang.pitch, this.minEl, this.maxEl);
       const err = this.slewTo(dt);
       const r = tgt.pos.distanceTo(this.worldPos);
-      const fast = tgt.vel.length() > 500;
+      const fast = tgt.vel.length() > 1.5 * SPEED_OF_SOUND;
       const openRange = fast ? S.openFireRange * 1.35 : S.openFireRange;
       if (this.lockT > S.lockTime && err < 0.02 && r < openRange && isFinite(tof) && this.ammo > 0 && this.reloadLeft <= 0) {
         wantFire = true;
@@ -265,7 +314,7 @@ export class Gun extends Mount {
     }
     this.state = 'track';
     const m = this.muzzle(_p);
-    const tof = leadSolve(m, GUN_SPEC.muzzleVel, GUN_SPEC.dragK, target.pos, target.vel, null, this.aim);
+    const tof = leadSolve(m, GUN_SPEC.muzzleVel, GUN_SPEC.dragK, target.pos, target.vel, null, this.aim, ship.vel);
     this.tof = tof;
     _d.copy(this.aim).sub(this.worldPos).normalize();
     const ang = this.toLocalAngles(ship, _d);

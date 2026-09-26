@@ -1,0 +1,12 @@
+{ "url": "/?scenario=mixedraid&nointro&manual", "steps": [
+  {"wait": 1500},
+  {"eval": "T.hideHud(); T.until(()=>game.world.threats.length>0, 200, 0.05); game.advance(0.6); const th=game.world.threats[0]; T.orbit(th, 2.2, 0.15, 70, 45); T.pause(); null"},
+  {"wait": 4000}, {"shot": "shots/coast/01_launch.png"},
+  {"eval": "game.setPaused(false); game.advance(3); T.pause(); const L=game.world.launchers[0]; T.orbit(L, 2.8, 0.25, 90, 45); null"},
+  {"wait": 4000}, {"shot": "shots/coast/02_tel.png"},
+  {"eval": "T.orbitShip(Math.PI*0.2 + 0.0, 0.03, 250, 40); const b=game.world.cfg.coastBearing*Math.PI/180; game.rig.cut({yaw: b+Math.PI, pitch:0.03, dist:250}); null"},
+  {"wait": 4000}, {"shot": "shots/coast/03_from_ship.png"},
+  {"eval": "const b=game.world.cfg.coastBearing*Math.PI/180; game.rig.cut({yaw: b+Math.PI+0.3, pitch:0.5, dist:30000}); null"},
+  {"wait": 5000}, {"shot": "shots/coast/04_high.png"},
+  {"log": "[game.fps, game.terrainView.stats]"}
+]}

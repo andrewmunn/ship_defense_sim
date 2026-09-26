@@ -140,26 +140,66 @@ export function hullTextures(): PBRSet {
   // ---- base colors
   ctx.fillStyle = HAZE;
   ctx.fillRect(0, 0, W, H);
-  // subtle vertical gradient: hull sides slightly darker lower down (spray/grime)
-  let gr = ctx.createLinearGradient(0, Y(10), 0, Y(0.5));
-  gr.addColorStop(0, 'rgba(0,0,0,0)');
-  gr.addColorStop(1, 'rgba(40,45,40,0.22)');
-  ctx.fillStyle = gr;
-  ctx.fillRect(0, Y(12.5), W, Y(0.5) - Y(12.5));
-  fractal(ctx, W, H, 11, 0.03, 'overlay', 6, 5, 4);
-
-  // paint touch-up patches (slightly different haze gray rectangles)
-  for (let i = 0; i < 70; i++) {
-    const x = r() * W, g = 0.8 + r() * 9.5;
-    const w = (0.5 + r() * 4) * pxm, h = (0.3 + r() * 2.2) * pym;
-    const dv = (r() - 0.45) * 7;
-    ctx.fillStyle = `rgba(${120 + dv},${125 + dv},${126 + dv},${0.2 + r() * 0.3})`;
-    ctx.fillRect(x, Y(g) - h / 2, w, h);
+  fractal(ctx, W, H, 11, 0.012, 'overlay', 6, 4, 4);
+  // plate-to-plate tone variation, aligned with the strake/butt weld grid below (low contrast)
+  const strakesC = [-13.5, -10.8, -8.1, -5.6, -3.4, -1.4, 1.2, 3.3, 5.4, 7.6, 9.9];
+  for (let s = 0; s < strakesC.length + 1; s++) {
+    const g0 = s === 0 ? HULL_G0 : strakesC[s - 1];
+    const g1 = s === strakesC.length ? HULL_G1 : strakesC[s];
+    if (g1 < 0.8) continue;
+    const off = (s % 3) * 2.1;
+    for (let z = Z_STERN + off - 6.1; z < Z_BOW; z += 6.1 + (s % 2) * 0.4) {
+      const touch = r() < 0.06;
+      const d = touch ? (r() - 0.4) * 14 : (r() - 0.5) * 6;
+      ctx.fillStyle = d > 0 ? `rgba(255,255,250,${d / 255})` : `rgba(20,22,24,${-d / 180})`;
+      ctx.fillRect(X(z + 6.1 + (s % 2) * 0.4), Y(g1), X(z) - X(z + 6.1 + (s % 2) * 0.4), Y(Math.max(g0, 0.8)) - Y(g1));
+    }
   }
-  fractal(ctx, W, H, 17, 0.035, 'overlay', 32, 3, 4);
+  // sun-fade drift, very soft
+  for (let i = 0; i < 60; i++) {
+    const x = r() * W, y = Y(1 + r() * 10), rad = (4 + r() * 12) * pxm;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+    g.addColorStop(0, r() < 0.5 ? 'rgba(235,238,235,0.03)' : 'rgba(30,34,36,0.035)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.save(); ctx.translate(x, y); ctx.scale(1, 0.35); ctx.translate(-x, -y);
+    ctx.fillRect(x - rad, y - rad, 2 * rad, 2 * rad);
+    ctx.restore();
+  }
+  // waterline grime: darkens toward the boot-top, streaky (spray + scum), heavier forward and aft
+  for (let x = 0; x < W; x += 2) {
+    const z = Z_BOW - (x / W) * LOA;
+    const heavy = 1 + 0.5 * Math.max(0, (z - 30) / 40) + 0.4 * Math.max(0, (-z - 50) / 25);
+    const top = 1.6 + r() * 1.6 * heavy;
+    const g = ctx.createLinearGradient(0, Y(top), 0, Y(0.8));
+    const a = (0.1 + r() * 0.1) * heavy;
+    g.addColorStop(0, 'rgba(62,64,52,0)');
+    g.addColorStop(0.7, `rgba(62,64,52,${a * 0.6})`);
+    g.addColorStop(1, `rgba(55,56,44,${a})`);
+    ctx.fillStyle = g;
+    ctx.fillRect(x, Y(top), 2, Y(0.8) - Y(top));
+  }
+  // thin brown scum line right above the boot-top
+  ctx.fillStyle = 'rgba(85,72,52,0.35)';
+  ctx.fillRect(0, Y(0.95), W, Y(0.8) - Y(0.95));
+  // salt: whitish horizontal smears in the spray zone and dried drips under the deck edge
+  for (let i = 0; i < 420; i++) {
+    const z = Z_STERN + r() * LOA;
+    const fwd = Math.max(0, (z + 10) / 80);
+    if (r() > 0.35 + fwd) continue;
+    const x = X(z), y = Y(1.2 + r() * (2.5 + fwd * 4));
+    const w = (0.5 + r() * 3.5) * pxm, h = (0.08 + r() * 0.35) * pym;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, w / 2);
+    g.addColorStop(0, `rgba(222,224,216,${0.05 + r() * 0.08})`);
+    g.addColorStop(1, 'rgba(222,224,216,0)');
+    ctx.fillStyle = g;
+    ctx.save(); ctx.translate(x, y); ctx.scale(1, h / w); ctx.translate(-x, -y);
+    ctx.fillRect(x - w / 2, y - w / 2, w, w);
+    ctx.restore();
+  }
 
   // waterline dirt band above boot-top
-  gr = ctx.createLinearGradient(0, Y(1.8), 0, Y(0.5));
+  let gr = ctx.createLinearGradient(0, Y(1.8), 0, Y(0.5));
   gr.addColorStop(0, 'rgba(70,72,65,0)');
   gr.addColorStop(1, 'rgba(70,72,65,0.1)');
   ctx.fillStyle = gr;
@@ -185,9 +225,10 @@ export function hullTextures(): PBRSet {
   }
 
   // ---- roughness
-  rctx.fillStyle = 'rgb(150,150,150)';
+  rctx.fillStyle = 'rgb(160,160,160)';
   rctx.fillRect(0, 0, W, H);
-  fractal(rctx, W, H, 31, 0.3, 'overlay', 8, 4, 4);
+  fractal(rctx, W, H, 31, 0.05, 'overlay', 8, 3, 4);
+  fractal(rctx, W, H, 32, 0.08, 'overlay', 128, 2, 4);
   rctx.fillStyle = 'rgb(128,128,128)';
   rctx.fillRect(0, Y(BT_TOP), W, Y(BT_BOT) - Y(BT_TOP));
   rctx.fillStyle = 'rgb(200,200,200)';
@@ -269,14 +310,19 @@ export function hullTextures(): PBRSet {
     streak(x, g - 0.1, 0.6 + r() * 1.2, 3 + r() * 4, 'rgba(95,70,50,A)', 0.2 + r() * 0.2);
   }
   // general thin rust/grime streaks
-  for (let i = 0; i < 380; i++) {
+  for (let i = 0; i < 300; i++) {
     const z = Z_STERN + r() * LOA;
     const gd = Math.min(deckY(z), 11) - r() * 5;
-    const rust = r() < 0.55;
-    streak(X(z), gd, 0.3 + r() * 2.5, 0.8 + r() * 2.5, rust ? 'rgba(110,65,35,A)' : 'rgba(50,52,50,A)', 0.08 + r() * 0.2);
+    const rust = r() < 0.4;
+    streak(X(z), gd, 0.3 + r() * 2.5, 0.8 + r() * 2.0, rust ? 'rgba(110,65,35,A)' : 'rgba(50,52,50,A)', 0.06 + r() * 0.14);
+  }
+  // long directional drips from the deck edge (run-off), fine and faint
+  for (let z = Z_STERN + 1; z < 72; z += 0.35 + r() * 0.8) {
+    const gd = deckY(z) - 0.12;
+    streak(X(z), gd, 0.6 + r() * 3.5, 0.8 + r() * 1.5, r() < 0.3 ? 'rgba(110,68,40,A)' : 'rgba(58,60,58,A)', 0.04 + r() * 0.09);
   }
   // hawse pipe rust (heavy)
-  for (let k = 0; k < 10; k++) streak(X(63.6) + (r() - 0.5) * 20, 5.9, 1.5 + r() * 3.5, 2 + r() * 4, 'rgba(100,62,38,A)', 0.15 + r() * 0.25);
+  for (let k = 0; k < 14; k++) streak(X(63.6) + (r() - 0.5) * 1.1 * pxm, 5.8, 1.0 + r() * 4.0, 1.5 + r() * 4, 'rgba(92,60,40,A)', 0.07 + r() * 0.13);
   // bow wave wear near stem at waterline (scuffed paint)
   gr = ctx.createLinearGradient(X(Z_BOW), 0, X(40), 0);
   gr.addColorStop(0, 'rgba(90,70,60,0.35)');
@@ -303,72 +349,89 @@ export function hullTextures(): PBRSet {
 
 let _paint: PBRSet | null = null;
 let _paintFine: PBRSet | null = null;
-/** Tiled haze-gray paint for structures (8 m tile) with weld seams. */
+/**
+ * Tiled haze-gray paint (8 m tile, box-projected uv0). Clean, low-contrast: the positional weathering lives in
+ * the unique weather atlas (weather.ts) for static geometry. The structural version carries the weld grid
+ * (rows every 2 m, butts every 8/3 m, alternate rows staggered) plus faint plate dishing; the fine version
+ * (fittings) only has orange-peel.
+ */
 export function paintTextures(fine = false): PBRSet {
   if (!fine && _paint) return _paint;
   if (fine && _paintFine) return _paintFine;
   const S = 1024;
+  const ppm = S / 8;
   const r = rng(fine ? 77 : 55);
   const [c, ctx] = canvas(S, S);
   const [rc, rctx] = canvas(S, S);
   const [hc, hctx] = canvas(S, S);
   ctx.fillStyle = HAZE;
   ctx.fillRect(0, 0, S, S);
-  fractal(ctx, S, S, fine ? 5 : 7, 0.05, 'overlay', 4, 5, 1, true);
+  fractal(ctx, S, S, fine ? 5 : 7, 0.012, 'overlay', 8, 4, 1, true);
   const wrapRect = (cx: Ctx, x: number, y: number, w: number, h: number) => {
     for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) cx.fillRect(x + dx, y + dy, w, h);
   };
-  // touch-up patches
-  for (let i = 0; i < (fine ? 20 : 40); i++) {
-    const dv = (r() - 0.45) * 8;
-    ctx.fillStyle = `rgba(${120 + dv},${125 + dv},${126 + dv},${0.25 + r() * 0.4})`;
-    wrapRect(ctx, r() * S, r() * S, 40 + r() * 300, 30 + r() * 200);
-  }
-  fractal(ctx, S, S, 9, 0.03, 'overlay', 32, 3, 1, true);
-  // grime streaks (vertical, top -> down)
-  for (let i = 0; i < (fine ? 50 : 90); i++) {
-    const x = r() * S, y = r() * S, len = 30 + r() * 200, w = 1 + r() * 3;
-    const rust = r() < 0.08;
-    const a = 0.03 + r() * 0.06;
-    const col = rust ? `100,70,50` : `60,63,64`;
-    for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) {
-      const g = ctx.createLinearGradient(0, y + dy, 0, y + dy + len);
-      g.addColorStop(0, `rgba(${col},${a})`);
-      g.addColorStop(1, `rgba(${col},0)`);
-      ctx.fillStyle = g;
-      ctx.fillRect(x + dx, y + dy, w, len);
-    }
-  }
-  // rust pits
-  for (let i = 0; i < 0; i++) {
-    ctx.fillStyle = `rgba(${95 + r() * 30},${55 + r() * 15},30,${0.2 + r() * 0.4})`;
-    const x = r() * S, y = r() * S, s = 1 + r() * 3;
-    ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI * 2); ctx.fill();
-  }
-  // roughness
-  rctx.fillStyle = 'rgb(150,150,150)';
+  // roughness: satin paint ~0.62 with faint low-frequency variation and fine speckle
+  rctx.fillStyle = 'rgb(158,158,158)';
   rctx.fillRect(0, 0, S, S);
-  fractal(rctx, S, S, 13, 0.35, 'overlay', 4, 5, 1, true);
-  // height: seams every 2 m (128 px per m for 8 m tile) + dents
+  fractal(rctx, S, S, 13, 0.06, 'overlay', 4, 3, 1, true);
+  fractal(rctx, S, S, 14, 0.08, 'overlay', 64, 2, 1, true);
+  // height
   hctx.fillStyle = 'rgb(128,128,128)';
   hctx.fillRect(0, 0, S, S);
-  fractal(hctx, S, S, 15, fine ? 0.04 : 0.07, 'overlay', 8, 3, 1, true);
+  // orange peel
+  fractal(hctx, S, S, 15, fine ? 0.05 : 0.04, 'overlay', 128, 2, 1, true);
   if (!fine) {
-    const step = S / 4;
-    for (let i = 0; i < 4; i++) {
-      const p = i * step + 2;
-      hctx.fillStyle = 'rgb(185,185,185)';
-      hctx.fillRect(0, p, S, 2);
-      hctx.fillRect(p + step * 0.37, 0, 2, S);
-      hctx.fillStyle = 'rgb(100,100,100)';
-      hctx.fillRect(0, p + 2, S, 1);
-      hctx.fillRect(p + step * 0.37 + 2, 0, 1, S);
+    const W = 8 / 3;
+    for (let k = 0; k < 4; k++) {
+      // world row y in [2k, 2k+2] -> canvas rows p0..p1 (canvas y down, texture flipY)
+      const p0 = S * (1 - (2 * k + 2) / 8), p1 = S * (1 - (2 * k) / 8);
+      const st = (k % 2) * (W / 2);
+      // plate dishing between stiffeners (vertical frames every ~0.67 m): very soft
+      for (let x = 0; x < S; x += (W / 4) * ppm) {
+        const g = hctx.createLinearGradient(x, 0, x + (W / 4) * ppm, 0);
+        g.addColorStop(0, 'rgba(150,150,150,0.25)');
+        g.addColorStop(0.5, 'rgba(110,110,110,0.25)');
+        g.addColorStop(1, 'rgba(150,150,150,0.25)');
+        hctx.fillStyle = g;
+        hctx.fillRect(x, p0, (W / 4) * ppm, p1 - p0);
+      }
+      // horizontal weld bead at the bottom of the row + vertical butts
+      hctx.fillStyle = 'rgb(178,178,178)';
+      wrapRect(hctx, 0, p1 - 1.5, S, 3);
+      hctx.fillStyle = 'rgb(150,150,150)';
+      wrapRect(hctx, 0, p1 - 2.5, S, 1);
+      for (let j = 0; j < 3; j++) {
+        const x = (j * W + st) * ppm;
+        hctx.fillStyle = 'rgb(178,178,178)';
+        wrapRect(hctx, x - 1.5, p0, 3, p1 - p0);
+        // albedo: the faintest seam line (paint pooling)
+        ctx.fillStyle = 'rgba(40,42,44,0.07)';
+        wrapRect(ctx, x - 1, p0, 2, p1 - p0);
+      }
+      ctx.fillStyle = 'rgba(40,42,44,0.07)';
+      wrapRect(ctx, 0, p1 - 1, S, 2);
+      // weld seams are slightly rougher
+      rctx.fillStyle = 'rgba(190,190,190,0.6)';
+      wrapRect(rctx, 0, p1 - 2, S, 4);
+      for (let j = 0; j < 3; j++) wrapRect(rctx, (j * W + st) * ppm - 2, p0, 4, p1 - p0);
+    }
+  }
+  // a few faint vertical grime streaks so non-atlas parts are not sterile
+  for (let i = 0; i < (fine ? 30 : 20); i++) {
+    const x = r() * S, y = r() * S, len = 30 + r() * 160, w = 1 + r() * 2;
+    const a = 0.02 + r() * 0.04;
+    for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) {
+      const g = ctx.createLinearGradient(0, y + dy, 0, y + dy + len);
+      g.addColorStop(0, `rgba(60,62,62,${a})`);
+      g.addColorStop(1, 'rgba(60,62,62,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x + dx, y + dy, w, len);
     }
   }
   const set: PBRSet = {
     map: canvasTex(c, true, true),
     roughnessMap: canvasTex(rc, false, true),
-    normalMap: heightToNormal(hc, fine ? 1.2 : 1.8, true),
+    normalMap: heightToNormal(hc, fine ? 1.0 : 1.6, true),
   };
   set.normalMap!.wrapS = set.normalMap!.wrapT = THREE.RepeatWrapping;
   if (fine) _paintFine = set;
@@ -507,46 +570,134 @@ export function deckAtlas() {
 }
 
 let _array: PBRSet | null = null;
-/** Sentinel phased-array face (octagon, planar UV 0..1). */
+/** Sentinel phased-array face (octagon, planar UV 0..1): sub-array tile grid, element bumps, glossier coating. */
 export function arrayTextures(): PBRSet {
   if (_array) return _array;
-  const S = 512;
+  const S = 1024;
   const r = rng(808);
   const [c, ctx] = canvas(S, S);
   const [hc, hctx] = canvas(S, S);
-  ctx.fillStyle = '#5b6164';
+  const [rc, rctx] = canvas(S, S);
+  ctx.fillStyle = '#687074';
   ctx.fillRect(0, 0, S, S);
-  fractal(ctx, S, S, 81, 0.06, 'overlay', 4, 4);
   hctx.fillStyle = 'rgb(128,128,128)';
   hctx.fillRect(0, 0, S, S);
-  // panel grid (sub-array panels)
-  const n = 12;
-  for (let i = 1; i < n; i++) {
-    const p = (i / n) * S;
-    ctx.fillStyle = 'rgba(40,44,46,0.05)';
-    ctx.fillRect(p - 1, 0, 2, S);
-    ctx.fillRect(0, p - 1, S, 2);
-    hctx.fillStyle = 'rgb(118,118,118)';
-    hctx.fillRect(p - 1, 0, 2, S);
-    hctx.fillRect(0, p - 1, S, 2);
-  }
-  // fastener dots
-  hctx.fillStyle = 'rgb(170,170,170)';
-  for (let i = 0; i < 0; i++) for (let j = 0; j < n; j++)
-    for (const [a, b] of [[0.1, 0.1], [0.9, 0.1], [0.1, 0.9], [0.9, 0.9]]) {
-      hctx.beginPath(); hctx.arc(((i + a) / n) * S, ((j + b) / n) * S, 2, 0, Math.PI * 2); hctx.fill();
+  rctx.fillStyle = 'rgb(105,105,105)';
+  rctx.fillRect(0, 0, S, S);
+  const n = 12; // ~0.3 m sub-array tiles
+  const tp = S / n;
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < n; j++) {
+      const d = (r() - 0.5) * 7;
+      ctx.fillStyle = d > 0 ? `rgba(255,255,255,${d / 255})` : `rgba(0,0,0,${-d / 200})`;
+      ctx.fillRect(i * tp, j * tp, tp, tp);
+      // element bumps: 6x6 per tile
+      hctx.fillStyle = 'rgb(146,146,146)';
+      for (let a = 0; a < 6; a++) for (let b = 0; b < 6; b++) {
+        hctx.beginPath();
+        hctx.arc(i * tp + (a + 0.5) * (tp / 6), j * tp + (b + 0.5) * (tp / 6), tp / 20, 0, Math.PI * 2);
+        hctx.fill();
+      }
     }
-  // streaks
-  for (let i = 0; i < 40; i++) {
-    const x = r() * S, y = r() * S * 0.5, len = 40 + r() * 250;
+  // grooves between tiles
+  for (let i = 0; i <= n; i++) {
+    const p = i * tp;
+    ctx.fillStyle = 'rgba(28,32,34,0.3)';
+    ctx.fillRect(p - 2, 0, 4, S);
+    ctx.fillRect(0, p - 2, S, 4);
+    hctx.fillStyle = 'rgb(84,84,84)';
+    hctx.fillRect(p - 3, 0, 6, S);
+    hctx.fillRect(0, p - 3, S, 6);
+    rctx.fillStyle = 'rgb(170,170,170)';
+    rctx.fillRect(p - 3, 0, 6, S);
+    rctx.fillRect(0, p - 3, S, 6);
+  }
+  // quadrant (sub-array module) seams, stronger
+  for (const p of [S / 3, (2 * S) / 3]) {
+    ctx.fillStyle = 'rgba(20,24,26,0.4)';
+    ctx.fillRect(p - 3, 0, 6, S);
+    ctx.fillRect(0, p - 3, S, 6);
+  }
+  fractal(ctx, S, S, 81, 0.03, 'overlay', 4, 3);
+  // faint salt / grime streaks
+  for (let i = 0; i < 50; i++) {
+    const x = r() * S, y = r() * S * 0.6, len = 60 + r() * 300;
     const g = ctx.createLinearGradient(0, y, 0, y + len);
-    g.addColorStop(0, `rgba(${r() < 0.4 ? '105,62,35' : '40,42,44'},${0.1 + r() * 0.2})`);
+    g.addColorStop(0, `rgba(${r() < 0.3 ? '105,62,35' : r() < 0.5 ? '210,212,205' : '40,42,44'},${0.05 + r() * 0.1})`);
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.fillRect(x, y, 1 + r() * 3, len);
   }
-  _array = { map: canvasTex(c, true, false), normalMap: heightToNormal(hc, 1.5, false) };
+  _array = { map: canvasTex(c, true, false), normalMap: heightToNormal(hc, 2.2, false), roughnessMap: canvasTex(rc, false, false) };
   return _array;
+}
+
+let _radome: PBRSet | null = null;
+/** Radome shell (cylindrical/spherical uv: u around, v along): off-white with gore seams, satin sheen. */
+export function radomeTextures(): PBRSet {
+  if (_radome) return _radome;
+  const W = 512, H = 256;
+  const r = rng(313);
+  const [c, ctx] = canvas(W, H);
+  const [hc, hctx] = canvas(W, H);
+  ctx.fillStyle = '#d9dad3';
+  ctx.fillRect(0, 0, W, H);
+  fractal(ctx, W, H, 314, 0.02, 'overlay', 4, 3, 2, true);
+  hctx.fillStyle = 'rgb(128,128,128)';
+  hctx.fillRect(0, 0, W, H);
+  const gores = 12;
+  for (let i = 0; i < gores; i++) {
+    const x = (i / gores) * W;
+    const d = (r() - 0.5) * 6;
+    ctx.fillStyle = d > 0 ? `rgba(255,255,255,${d / 255})` : `rgba(0,0,0,${-d / 255})`;
+    ctx.fillRect(x, 0, W / gores, H);
+    ctx.fillStyle = 'rgba(90,92,88,0.18)';
+    ctx.fillRect(x - 1, 0, 2, H);
+    hctx.fillStyle = 'rgb(160,160,160)';
+    hctx.fillRect(x - 1.5, 0, 3, H);
+  }
+  for (const v of [0.34, 0.67]) {
+    ctx.fillStyle = 'rgba(90,92,88,0.15)';
+    ctx.fillRect(0, v * H - 1, W, 2);
+    hctx.fillStyle = 'rgb(160,160,160)';
+    hctx.fillRect(0, v * H - 1.5, W, 3);
+  }
+  // grime collecting low on the shell
+  const g = ctx.createLinearGradient(0, H * 0.55, 0, H);
+  g.addColorStop(0, 'rgba(80,80,70,0)');
+  g.addColorStop(1, 'rgba(80,80,70,0.12)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  _radome = { map: canvasTex(c, true, true), normalMap: heightToNormal(hc, 1.2, true) };
+  _radome.normalMap!.wrapS = _radome.normalMap!.wrapT = THREE.RepeatWrapping;
+  return _radome;
+}
+
+let _flag: THREE.Texture | null = null;
+/** Fictional naval ensign: navy field, white chevron and star (not any real nation's flag). */
+export function flagTexture() {
+  if (_flag) return _flag;
+  const [c, ctx] = canvas(256, 160);
+  ctx.fillStyle = '#1b2a4a';
+  ctx.fillRect(0, 0, 256, 160);
+  ctx.fillStyle = '#e8e8e2';
+  ctx.beginPath();
+  ctx.moveTo(0, 0); ctx.lineTo(40, 0); ctx.lineTo(128, 80); ctx.lineTo(40, 160); ctx.lineTo(0, 160); ctx.lineTo(88, 80); ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#b8342a';
+  ctx.fillRect(150, 66, 106, 28);
+  ctx.fillStyle = '#e8e8e2';
+  const star = (cx: number, cy: number, R: number) => {
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? R * 0.42 : R;
+      ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+    }
+    ctx.fill();
+  };
+  star(200, 36, 18);
+  _flag = canvasTex(c, true, false);
+  return _flag;
 }
 
 let _num: THREE.Texture | null = null;
@@ -611,25 +762,42 @@ export function netTexture() {
 }
 
 let _soot: THREE.Texture | null = null;
-/** Soot gradient for funnel tops (tiled horizontally, v up). */
+/**
+ * Stack-cap soot. u = around the funnel (0.5 = aft side, 0/1 = forward), v = 0 at the base of the cap, 1 at the top.
+ * Dark exhaust-stained top edge, streaky soot running down, heavier on the aft (lee) side.
+ */
 export function sootTexture() {
   if (_soot) return _soot;
-  // v = 0 at the base of the stack extension, 1 at the top. Hard-edged black band at the top, streaky soot below.
-  const [c, ctx] = canvas(256, 256);
+  const W = 512, H = 256;
+  const [c, ctx] = canvas(W, H);
   const r = rng(515);
   ctx.fillStyle = HAZE;
-  ctx.fillRect(0, 0, 256, 256);
-  const band = 0.5 * 256;
-  const g = ctx.createLinearGradient(0, band, 0, 256);
-  g.addColorStop(0, 'rgba(40,40,40,0.55)');
-  g.addColorStop(0.45, 'rgba(55,55,55,0.2)');
-  g.addColorStop(1, 'rgba(60,60,60,0.0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, band, 256, 256 - band);
-  void r;
-  ctx.fillStyle = '#1b1c1d';
-  ctx.fillRect(0, 0, 256, band);
-  fractal(ctx, 256, 256, 91, 0.06, 'overlay', 4, 4, 1, true);
+  ctx.fillRect(0, 0, W, H);
+  // v=1 (top) is canvas row 0
+  for (let x = 0; x < W; x += 2) {
+    const u = x / W;
+    const aft = Math.pow(Math.max(0, Math.cos((u - 0.5) * Math.PI * 2) * 0.5 + 0.5), 1.5); // 1 at aft side
+    const reach = H * (0.3 + 0.5 * aft) * (0.85 + r() * 0.3);
+    const a = (0.4 + 0.35 * aft) * (0.9 + r() * 0.15);
+    const g = ctx.createLinearGradient(0, 0, 0, reach);
+    g.addColorStop(0, `rgba(26,26,25,${Math.min(1, a + 0.2)})`);
+    g.addColorStop(0.18, `rgba(30,30,29,${a})`);
+    g.addColorStop(0.55, `rgba(40,40,38,${a * 0.45})`);
+    g.addColorStop(1, 'rgba(45,45,43,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, 0, 2, reach);
+  }
+  // soften the column structure into streaks
+  {
+    const [c2, ctx2] = canvas(W, H);
+    ctx2.filter = 'blur(3px)';
+    for (const dx of [-W, 0, W]) ctx2.drawImage(c, dx, 0);
+    ctx.drawImage(c2, 0, 0);
+  }
+  // sharp heat-discoloured band at the very top
+  ctx.fillStyle = 'rgba(22,21,20,0.9)';
+  ctx.fillRect(0, 0, W, H * 0.06);
+  fractal(ctx, W, H, 91, 0.05, 'overlay', 8, 3, 2, true);
   _soot = canvasTex(c, true, true);
   _soot.wrapT = THREE.ClampToEdgeWrapping;
   return _soot;

@@ -1,0 +1,10 @@
+{ "url": "/?scenario=coastalraid&nointro", "steps": [
+  {"wait": 500},
+  {"eval": "T.hideHud(); const s=game.world.ship; window.V=s.pos.constructor; window.P=s.pos.clone().add(new V(0,25,-400)); T.orbit({pos:P,vel:new V(),radius:10,alive:true,id:-2}, 1.2, 0.08, 170, 45); game.advance(0.3); game.fx.detonation(P.clone(), new V(0,0,-100), 'intercept', 60); game.advance(0.08); T.pause(); null"},
+  {"wait": 1000}, {"shot": "shots/c/d1.png"},
+  {"eval": "game.setPaused(false); game.advance(0.4); T.pause(); null"}, {"wait": 700}, {"shot": "shots/c/d2.png"},
+  {"eval": "game.setPaused(false); game.advance(1.5); T.pause(); null"}, {"wait": 700}, {"shot": "shots/c/d3.png"},
+  {"eval": "game.setPaused(false); game.advance(6); T.pause(); null"}, {"wait": 700}, {"shot": "shots/c/d4.png"},
+  {"eval": "game.setPaused(false); game.fx.detonation(P.clone().add(new V(60,-18,0)), new V(0,0,-100), 'warhead', 165); game.advance(0.15); T.pause(); null"}, {"wait": 700}, {"shot": "shots/c/d5.png"},
+  {"eval": "game.setPaused(false); game.advance(1.0); T.pause(); null"}, {"wait": 700}, {"shot": "shots/c/d6.png"}
+]}

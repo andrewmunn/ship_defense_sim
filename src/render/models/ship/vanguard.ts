@@ -5,10 +5,13 @@ import { buildHull, buildRunningGear } from './hull';
 import { buildSuperstructure } from './superstructure';
 import { createGun, createCIWS, createIlluminator, createVLS, addDecoyLauncher, addTorpedoTubes, addChainGun } from './weapons';
 import { buildMast } from './mast';
+import { buildBreakwater } from './details';
+import { buildExtras } from './extras';
 import { Railings, buildDeckFittings, buildFlightDeckNets, buildLifeRafts, buildBoats, buildAntennas, buildHullDecals } from './details';
 import { createHelo } from './helo';
 import { Block } from './block';
 import { LOA, Z_STERN, Z_STEM_WL, LAYOUT as L, deckAt, deckY } from './hulldef';
+import { WX, assignWeatherUV, weatherAtlas } from './weather';
 
 /**
  * Procedural VANGUARD (DDV-01), lead ship of the Vanguard-class guided-missile destroyers.
@@ -41,6 +44,7 @@ export function createDestroyer(): THREE.Object3D {
 function buildDestroyer(): THREE.Object3D {
   const t0 = performance.now();
   const mats = shipMaterials();
+  WX.src.length = 0;
   const root = new THREE.Group();
   root.name = 'vanguard';
   const pb = new PartBuilder();
@@ -51,7 +55,7 @@ function buildDestroyer(): THREE.Object3D {
 
   // ---------------------------------------------------------------- superstructure
   const ss = buildSuperstructure(pb);
-  // Sentinel octagonal phased-array faces
+  // Sentinel octagonal phased-array faces: glossy tiled face recessed in a raised, bolted bezel
   {
     const R = 3.66 / 2 / Math.cos(Math.PI / 8);
     const face = new THREE.CylinderGeometry(R, R, 0.22, 8, 1, false);
@@ -62,12 +66,37 @@ function buildDestroyer(): THREE.Object3D {
       const p = face.attributes.position, uv = face.attributes.uv;
       for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / (2 * R) + 0.5, p.getY(i) / (2 * R) + 0.5);
     }
-    const frame = new THREE.CylinderGeometry(R + 0.16, R + 0.16, 0.12, 8, 1, false);
-    frame.rotateX(Math.PI / 2);
-    frame.rotateZ(Math.PI / 8);
+    const octa = (rr: number) => {
+      const pts: THREE.Vector2[] = [];
+      for (let k = 0; k < 8; k++) {
+        const a = Math.PI / 8 + (k * Math.PI) / 4;
+        pts.push(new THREE.Vector2(Math.cos(a) * rr, Math.sin(a) * rr));
+      }
+      return pts;
+    };
+    const k8 = 1 / Math.cos(Math.PI / 8); // flat distance -> circumradius
+    const shape = new THREE.Shape(octa((3.66 / 2 + 0.3) * k8));
+    shape.holes.push(new THREE.Path(octa((3.66 / 2 - 0.07) * k8).reverse()));
+    const bezel = new THREE.ExtrudeGeometry(shape, { depth: 0.24, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.06, bevelSegments: 1, steps: 1 });
+    // bolts around the bezel, on the mid-line of each flat
+    const bolt = new THREE.CylinderGeometry(0.035, 0.035, 0.05, 6);
+    bolt.rotateX(Math.PI / 2);
+    const bolts: THREE.Matrix4[] = [];
+    for (let k = 0; k < 8; k++) {
+      const a0 = Math.PI / 8 + (k * Math.PI) / 4, a1 = a0 + Math.PI / 4;
+      const rm = (3.66 / 2 + 0.12) * k8;
+      for (let q = 0; q < 5; q++) {
+        const t = (q + 0.5) / 5;
+        const x = Math.cos(a0) * rm * (1 - t) + Math.cos(a1) * rm * t, y = Math.sin(a0) * rm * (1 - t) + Math.sin(a1) * rm * t;
+        bolts.push(M(x, y, 0.33));
+      }
+    }
     for (const fm of ss.arrays) {
-      pb.add('array', face, fm.clone().multiply(M(0, 0, 0.17)), { uv: 'keep' });
-      pb.add('paintFine', frame, fm.clone().multiply(M(0, 0, 0.06)));
+      pb.add('array', face, fm.clone().multiply(M(0, 0, 0.11)), { uv: 'keep' });
+      pb.add('paintFine', bezel, fm.clone().multiply(M(0, 0, 0.0)));
+      for (const bm of bolts) pb.add('darkSteel', bolt, fm.clone().multiply(bm));
+      // cable/cooling junction box under each array
+      pb.add('paintFine', new THREE.BoxGeometry(0.9, 0.35, 0.3), fm.clone().multiply(M(0, -2.25, 0.15)));
     }
   }
 
@@ -77,11 +106,13 @@ function buildDestroyer(): THREE.Object3D {
   // ---------------------------------------------------------------- fittings, rails, boats
   const rails = new Railings();
   buildDeckFittings(pb, rails);
+  buildBreakwater(pb);
   buildFlightDeckNets(pb);
   buildLifeRafts(pb);
   buildBoats(pb);
   buildAntennas(pb);
   buildHullDecals(pb);
+  buildExtras(pb);
   addRoofRails(rails, ss.blocks);
 
   // ---------------------------------------------------------------- weapons
@@ -127,6 +158,17 @@ function buildDestroyer(): THREE.Object3D {
   // ---------------------------------------------------------------- merge static geometry
   rails.build(root, pb, mats);
   bakeFloorAO(pb);
+  // unique weathering atlas on uv1 for the static painted geometry
+  for (const key of ['paintAO', 'paintFineAO']) {
+    const list = pb.lists.get(key);
+    if (list) pb.lists.set(key, list.map((g) => assignWeatherUV(g)));
+  }
+  const atlas = weatherAtlas();
+  for (const key of ['paintAO', 'paintFineAO']) {
+    const m = mats[key] as THREE.MeshStandardMaterial;
+    m.map = atlas;
+    m.needsUpdate = true;
+  }
   const statics = new THREE.Group();
   statics.name = 'ship_static';
   pb.build(statics, mats, 'ship');
@@ -204,8 +246,9 @@ function addRoofRails(rails: Railings, b: Record<string, Block>) {
   }
   // hangar roof: outer edges, aft edge, VLS well edges
   const hy = L.hangarRoof;
-  for (const sx of [1, -1]) {
-    rails.add([[sx * 8.1, hy, -21.3], [sx * 8.95, hy, -24.8], [sx * 8.95, hy, -56.2], [sx * 3.9, hy, -56.2]]);
+  for (const [sx, k] of [[1, 'hangarUpP'], [-1, 'hangarUpS']] as [number, string][]) {
+    const t = top(k, 0.12);
+    rails.add([1, 2, 3, 4].map((i) => [t[i][0], hy, t[i][1]] as V3));
     rails.add([[sx * 3.95, hy, -24.6], [sx * 3.95, hy, -35.8], [sx * 2.6, hy, -35.8]]);
   }
 }
@@ -216,7 +259,7 @@ function addRoofRails(rails: Railings, b: Record<string, Block>) {
  * shadowing at the base of walls and fittings. Moves 'paint'/'paintFine' lists to their AO variants.
  */
 function bakeFloorAO(pb: PartBuilder) {
-  const levels = [L.lvl01, L.lvl02, L.lvl03, L.bridgeRoof, L.lvl05, L.hangarRoof, 8.75, 14.0];
+  const levels = [L.lvl01, L.lvl02, L.lvl03, L.bridgeRoof, L.lvl05, L.hangarRoof, 8.75, 14.0, 8.3, 13.6];
   for (const key of ['paint', 'paintFine']) {
     const list = pb.lists.get(key);
     if (!list) continue;

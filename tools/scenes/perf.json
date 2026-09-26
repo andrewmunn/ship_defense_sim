@@ -1,0 +1,12 @@
+{"url":"/?scenario=overwhelm&nointro&manual","steps":[{"wait":800},
+{"eval":"game.setAutoTime(false); T.until(()=>game.world.threats.filter(t=>t.alive).length>30, 300, 0.1); T.orbitShip(2.2,0.3,900,50); window.m=()=>new Promise(r=>{let n=0;const t0=performance.now();const f=()=>{if(++n<90)requestAnimationFrame(f);else r((90*1000/(performance.now()-t0)).toFixed(1));};requestAnimationFrame(f);}); null"},
+{"wait":1000},
+{"eval":"m().then(v=>'base '+v)"},
+{"eval":"game.particles.mesh.visible=false; m().then(v=>{game.particles.mesh.visible=true; return 'noParticles '+v})"},
+{"eval":"game.ocean.mesh.visible=false; m().then(v=>{game.ocean.mesh.visible=true; return 'noOcean '+v})"},
+{"eval":"game.atm.sky.visible=false; m().then(v=>{game.atm.sky.visible=true; return 'noSky '+v})"},
+{"eval":"game.R.renderer.shadowMap.enabled=false; m().then(v=>{game.R.renderer.shadowMap.enabled=true; return 'noShadow '+v})"},
+{"eval":"game.shipView.root.visible=false; m().then(v=>{game.shipView.root.visible=true; return 'noShip '+v})"},
+{"eval":"game.entities.trails.group.visible=false; m().then(v=>{game.entities.trails.group.visible=true; return 'noTrails '+v})"},
+{"eval":"document.getElementById('overlay').style.display='none'; document.getElementById('hud').style.display='none'; m().then(v=>'noUI '+v)"}
+]}

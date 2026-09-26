@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PartBuilder, M, V2, V3, box, cyl, cylZ, rod, loftRings, instanced, DEG, rng, normalizeGeo } from './geom';
+import { PartBuilder, M, V2, V3, box, cyl, cylZ, rod, loftRings, instanced, DEG, rng, normalizeGeo, prismBetween } from './geom';
 import { Z_BOW, Z_STERN, deckY, hbDeck, deckAt, hullXAbove, hullX, hullSlopeAbove, LAYOUT as L } from './hulldef';
 
 type Mats = Record<string, THREE.Material>;
@@ -121,7 +121,7 @@ export function buildDeckFittings(pb: PartBuilder, rails: Railings) {
     pb.add('darkSteel', box(0.9, 0.04, 0.9), M(x, y + 0.13, z));
     pb.add('darkSteel', box(0.3, 0.05, 0.06), M(x + 0.3, y + 0.17, z));
   }
-  for (const [x, z] of [[4.8, 50.0], [-4.8, 50.0], [5.6, 40.5], [-5.6, 40.5], [1.8, 62.8], [-1.8, 62.8]] as [number, number][]) {
+  for (const [x, z] of [[4.8, 50.0], [-4.8, 50.0], [6.4, 38.6], [-6.4, 38.6], [1.8, 62.8], [-1.8, 62.8]] as [number, number][]) {
     const y = deckAt(x, z);
     pb.add('paintFine', cyl(0.09, 0.09, 0.42, 12), M(x, y + 0.21, z));
     pb.add('paintFine', new THREE.SphereGeometry(0.2, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2), M(x, y + 0.42, z, 0, 0, 0, 1, 0.5, 1));
@@ -340,7 +340,7 @@ export function buildHullDecals(pb: PartBuilder) {
     pb.addOwned(mat, g, undefined, { uv: 'keep' });
   };
   for (const s of [1, -1]) {
-    patch(55.5, 5.3, 5.8, 2.9, s, 'decalNumber');
+    patch(55.0, 6.9, 5.8, 2.9, s, 'decalNumber', 24, 20, 0.04);
     patch(64.4, -0.6, 0.75, 6.0, s, 'decalDraft', 2, 24, 0.02);
     patch(-73.5, 0.5, 0.75, 6.0, s, 'decalDraft', 2, 24, 0.02);
   }
@@ -348,3 +348,45 @@ export function buildHullDecals(pb: PartBuilder) {
 
 export const _unusedD = [rng, normalizeGeo];
 export type _V2 = V2;
+
+/**
+ * Forecastle breakwater: a chevron bulwark between the gun and the forward VLS, raked forward,
+ * with triangular gussets on its aft face and freeing ports at the deck.
+ */
+export function buildBreakwater(pb: PartBuilder) {
+  const apex: V2 = [0, 43.45], end: V2 = [6.3, 40.35];
+  const H = 1.15, T = 0.08, rake = 0.3; // top leans forward by `rake`
+  for (const sx of [1, -1]) {
+    const a = new THREE.Vector3(0, 0, apex[1]), b = new THREE.Vector3(sx * end[0], 0, end[1]);
+    const N = 8;
+    for (let i = 0; i < N; i++) {
+      const p0 = a.clone().lerp(b, i / N), p1 = a.clone().lerp(b, (i + 1) / N);
+      const y0 = deckAt(p0.x, p0.z) - 0.05, y1 = deckAt(p1.x, p1.z) - 0.05;
+      // plate: quad strip with thickness, following the cambered deck
+      const bot: V2[] = [[p0.x, p0.z], [p1.x, p1.z], [p1.x, p1.z - T], [p0.x, p0.z - T]];
+      const top: V2[] = bot.map(([x, z]) => [x, z + rake] as V2);
+      const g = prismBetween(bot, 0, top, H, true, false);
+      const pp = g.attributes.position;
+      for (let k = 0; k < pp.count; k++) {
+        const t = (pp.getX(k) - p0.x) / (p1.x - p0.x || 1e-6);
+        pp.setY(k, pp.getY(k) + y0 + (y1 - y0) * Math.min(1, Math.max(0, t)));
+      }
+      g.computeVertexNormals();
+      pb.addOwned('paint', normalizeGeo(g));
+    }
+    // top rolled edge
+    const [rg, rm] = rod(new THREE.Vector3(0, deckAt(0, apex[1]) + H - 0.05, apex[1] + rake - T / 2), new THREE.Vector3(sx * end[0], deckAt(end[0], end[1]) + H - 0.05, end[1] + rake - T / 2), 0.06, 8);
+    pb.addOwned('paintFine', rg, rm);
+    // gussets (aft side) and freeing ports (dark slots at the deck)
+    const dir = b.clone().sub(a).normalize();
+    const nrm = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(sx); // points aft-ish
+    if (nrm.z > 0) nrm.negate();
+    for (let d = 0.6; d < a.distanceTo(b) - 0.2; d += 1.05) {
+      const p = a.clone().addScaledVector(dir, d);
+      const y = deckAt(p.x, p.z);
+      const gus = prismBetween([[-0.03, 0], [0.03, 0], [0.03, 0.55], [-0.03, 0.55]], 0, [[-0.03, 0], [0.03, 0], [0.03, 0.05], [-0.03, 0.05]], H * 0.8, true, false);
+      pb.addOwned('paintFine', gus, M(p.x + nrm.x * T, y - 0.02, p.z + nrm.z * T, 0, Math.atan2(nrm.x, nrm.z), 0));
+      if (Math.round(d / 1.05) % 2 === 0) pb.add('black', box(0.45, 0.16, 0.02), M(p.x + nrm.x * (T + 0.005), y + 0.1, p.z + nrm.z * (T + 0.005), 0, Math.atan2(-dir.z, dir.x), 0));
+    }
+  }
+}

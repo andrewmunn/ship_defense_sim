@@ -1,0 +1,9 @@
+{ "url": "/?scenario=coastalraid&nointro", "steps": [
+  {"wait": 800},
+  {"eval": "T.hideHud(); const s=game.world.ship; window.V=s.pos.constructor; window.P=s.pos.clone().add(new V(0,40,-500)); T.orbit({pos:P,vel:new V(),radius:10,alive:true,id:-2}, 1.2, 0.05, 150, 45); game.advance(0.3); game.fx.detonation(P.clone(), new V(0,0,-250), 'intercept', 60); game.advance(0.05); T.pause(); null"},
+  {"wait": 1200}, {"shot": "shots/review1/d01_intercept_t005.png"},
+  {"eval": "game.setPaused(false); game.advance(0.3); T.pause(); null"}, {"wait": 900}, {"shot": "shots/review1/d02_intercept_t035.png"},
+  {"eval": "game.setPaused(false); game.advance(2.0); T.pause(); null"}, {"wait": 900}, {"shot": "shots/review1/d03_intercept_t235.png"},
+  {"eval": "game.setPaused(false); window.Q=s=game.world.ship.pos.clone().add(new V(80,3,-300)); game.fx.detonation(Q.clone(), new V(0,0,-250), 'warhead', 165); T.orbit({pos:Q,vel:new V(),radius:10,alive:true,id:-3}, 1.2, 0.08, 220, 45); game.advance(0.12); T.pause(); null"}, {"wait": 900}, {"shot": "shots/review1/d04_warhead_sea.png"},
+  {"eval": "game.setPaused(false); game.advance(1.5); T.pause(); null"}, {"wait": 900}, {"shot": "shots/review1/d05_warhead_sea_t16.png"}
+]}

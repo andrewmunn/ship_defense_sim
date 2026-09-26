@@ -4,8 +4,21 @@
     {
       "name": "sim",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 8765
+    },
+    {
+      "name": "sim-test",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--config",
+        "vite.test.config.ts"
+      ],
+      "port": 8766
     }
   ]
 }

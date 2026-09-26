@@ -37,6 +37,8 @@ export interface ScenarioConfig {
     ciws: boolean;
     /** Max simultaneous semi-active terminal engagements per illuminator. */
     illumShare: number;
+    /** Ring up flank speed and turn to unmask both CIWS mounts against the threat axis. */
+    maneuver?: boolean;
   };
   env: { timeOfDay: number; seaState: number; visibilityKm: number; clouds: number; windDeg: number };
   ship: { speedKts: number; heading: number };
@@ -51,8 +53,8 @@ const base = (): ScenarioConfig => ({
   sites: 3,
   waves: [],
   loadout: { halberd: 34, glaive: 12, stiletto: 32, ciwsRounds: 1550, gunRounds: 600, wisp: 8, chaff: 24 },
-  doctrine: { policy: 'auto', reaction: 3.0, decoys: true, gun: true, ciws: true, illumShare: 1 },
-  env: { timeOfDay: 17.3, seaState: 3, visibilityKm: 60, clouds: 0.4, windDeg: 220 },
+  doctrine: { policy: 'auto', reaction: 3.0, decoys: true, gun: true, ciws: true, illumShare: 1, maneuver: true },
+  env: { timeOfDay: 16.4, seaState: 3, visibilityKm: 180, clouds: 0.4, windDeg: 220 },
   ship: { speedKts: 18, heading: 300 },
 });
 
@@ -108,7 +110,7 @@ export const PRESETS: ScenarioConfig[] = [
     name: 'Night Raid',
     desc: 'A mixed raid after dark in a rising sea.',
     waves: [W(150, 'asm_subsonic', 8, 2, 3, 50), W(165, 'asm_supersonic', 4, 2, 2, 30, 'lo')],
-    env: { timeOfDay: 22.5, seaState: 4, visibilityKm: 40, clouds: 0.3, windDeg: 200 },
+    env: { timeOfDay: 22.5, seaState: 4, visibilityKm: 60, clouds: 0.3, windDeg: 200 },
   },
 ];
 

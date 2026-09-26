@@ -87,24 +87,28 @@ void main(){
   #include <logdepthbuf_fragment>
   float across = vSide; // -1..1
   float ax = abs(across);
-  // puffy cross-section: noise erodes the edges
-  float n = fbm(vec2(vDist / max(vWidth * 1.6, 1.0), across * 1.3 + vAge * 0.05) + vec2(vAge * 0.02, 0.0));
-  float n2 = vnoise(vec2(vDist / max(vWidth * 0.5, 0.5) + 3.7, across * 2.5));
-  float edge = 1.0 - smoothstep(0.35 + n * 0.55, 1.0, ax);
-  float body = (0.55 + 0.45 * n2) * edge;
+  // puffy, turbulent cross-section: gaussian core eroded by noise, lumpy along the length
+  float sc = max(vWidth * 1.2, 1.0);
+  float n = fbm(vec2(vDist / sc, across * 1.1 + vAge * 0.04) + vec2(vAge * 0.015, 0.0));
+  float n2 = fbm(vec2(vDist / (sc * 0.35) + 3.7, across * 2.3 - vAge * 0.03));
+  float prof = exp(-ax * ax * (2.2 + 2.0 * (1.0 - n)));
+  float edge = smoothstep(1.0, 0.55 + 0.35 * n, ax);
+  float body = prof * edge * (0.45 + 0.75 * n2);
   // density decays with age and spreading (mass conservation)
   float spread = uWidth0 / max(vWidth, uWidth0);
-  float dens = uOpacity * mix(1.0, spread, 0.7) * body;
+  float dens = uOpacity * mix(1.0, spread, 0.65) * body;
   float t = vAge / uLife;
-  dens *= smoothstep(0.0, 0.03, vAge) * (1.0 - smoothstep(0.35, 1.0, t));
-  // lighting: cylindrical normal
+  // dissipate: thins steadily from early on, gone by the end of life
+  float fadeOut = 1.0 - smoothstep(0.08, 1.0, t);
+  dens *= smoothstep(0.0, 0.03, vAge) * fadeOut * fadeOut;
+  // lighting: soft volumetric (half cylinder normal blended toward the viewer)
   vec3 V = normalize(cameraPosition - vWorld);
-  vec3 N = normalize(vSideDir * across + V * sqrt(max(1.0 - across * across, 0.0)));
+  vec3 N = normalize(vSideDir * across * 0.7 + V * sqrt(max(1.0 - across * across, 0.0)) + atmUp(vWorld) * (n2 - 0.5));
   vec3 L = uSunDir;
   float sunUp = smoothstep(-0.05, 0.1, dot(L, atmUp(vWorld)));
-  float wrap = clamp(dot(N, L) * 0.5 + 0.5, 0.0, 1.0);
+  float wrap = clamp(dot(N, L) * 0.45 + 0.55, 0.0, 1.0);
   float fwd = pow(max(dot(-V, L), 0.0), 8.0) * (1.0 - clamp(dens, 0.0, 1.0)) * 1.3;
-  vec3 col = uColor * (uSunColor * 0.085 * (wrap * (0.7 + 0.3 * n) + fwd) * sunUp + uAmbient);
+  vec3 col = uColor * (uSunColor * 0.085 * (wrap * (0.75 + 0.25 * n) + fwd) * sunUp + uAmbient * (0.8 + 0.3 * n2));
   float alt = atmAlt(vWorld);
   dens *= smoothstep(-0.3 * vWidth, 0.4 * vWidth, alt);
   dens = clamp(dens, 0.0, 1.0) * vFade;
@@ -236,7 +240,6 @@ class TrailSlot {
     if (this.dirtyLo === Infinity) return;
     const lo = this.dirtyLo, hi = Math.min(this.n + 1, MAXP);
     for (const [at, k] of [[this.posAttr, 3], [this.tanAttr, 3], [this.dataAttr, 4]] as [THREE.BufferAttribute, number][]) {
-      at.clearUpdateRanges();
       at.addUpdateRange(lo * 2 * k, Math.max(1, hi - lo) * 2 * k);
       at.needsUpdate = true;
     }
@@ -294,6 +297,15 @@ export class Trails {
     }
     s.start(style, p, this.now);
     return s;
+  }
+
+  /** Drop every trail (scenario restart). */
+  clear() {
+    for (const s of this.slots) {
+      s.active = false;
+      s.emitting = false;
+      s.mesh.visible = false;
+    }
   }
 
   update(t: number, wind: THREE.Vector3, viewportH: number, ambient: THREE.Vector3) {

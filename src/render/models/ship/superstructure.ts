@@ -57,7 +57,7 @@ export function buildSuperstructure(pb: PartBuilder): SSAnchors {
     const nWin = Math.max(2, Math.round(len / 1.15));
     for (let i = 0; i < nWin; i++) {
       const s0 = (i + 0.08) / nWin, s1 = (i + 0.92) / nWin;
-      P('glass', quadOnFace(pilot, e, s0, s1, hw0, hw1, 0.02));
+      P('glassBridge', quadOnFace(pilot, e, s0, s1, hw0, hw1, 0.02));
     }
     // sun visor / eyebrow above windows
     P('paintFine', stripOnFace(pilot, e, 0.0, 1.0, pilot.hf(17.85), 0.3, 0.06));
@@ -66,7 +66,7 @@ export function buildSuperstructure(pb: PartBuilder): SSAnchors {
   for (const e of [1, nE - 3]) {
     for (let i = 0; i < 3; i++) {
       const s0 = e === 1 ? 0.25 + i * 0.1 : 0.68 + i * 0.1, s1 = s0 + 0.07;
-      P('glass', quadOnFace(pilot, e, s0, s1, hw0, hw1, 0.02));
+      P('glassBridge', quadOnFace(pilot, e, s0, s1, hw0, hw1, 0.02));
     }
   }
   // bridge wings
@@ -151,31 +151,60 @@ export function buildSuperstructure(pb: PartBuilder): SSAnchors {
     const f = (yCap - y0) / (yTop - y0);
     const mid = bot.map(([x, z], i) => [x + (top[i][0] - x) * f, z + (top[i][1] - z) * f] as V2);
     P('paint', prismBetween(bot, y0, mid, yCap, false, false));
+    // two stiffening belts around the casing above the intake louvers
+    for (const yb of [yCap - 5.2, yCap - 2.6]) {
+      const f0 = (yb - y0) / (yCap - y0), f1 = (yb + 0.16 - y0) / (yCap - y0);
+      const ringAt = (f: number) => offsetPoly(bot.map(([x, z], i) => [x + (mid[i][0] - x) * f, z + (mid[i][1] - z) * f] as V2), -0.07);
+      P('paintFine', prismBetween(ringAt(f0), yb, ringAt(f1), yb + 0.16, true, true));
+    }
     // stack extension: faceted cap, sides leaning inboard, black band at top, soot below
     const lip = offsetPoly(mid, -0.07);
     P('paintFine', prismBetween(lip, yCap - 0.1, lip, yCap + 0.08, true, true));
     const capTop = offsetPoly(mid, 0.42);
     const capG = normalizeGeo(prismBetween(mid, yCap, capTop, yTop, true, false));
     {
+      // u = around the stack (0.5 = aft side), v = up the cap; fix the wrap per (unshared) triangle
       const pos = capG.attributes.position, uv = capG.attributes.uv;
-      for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + pos.getZ(i)) / 3, (pos.getY(i) - yCap) / (yTop - yCap));
+      const czTop = zc + shift;
+      for (let i = 0; i < pos.count; i++) {
+        const cz = czTop + (zc - czTop) * (1 - (pos.getY(i) - y0) / (yTop - y0));
+        uv.setXY(i, Math.atan2(pos.getX(i), -(pos.getZ(i) - cz)) / (Math.PI * 2) + 0.5, (pos.getY(i) - yCap) / (yTop - yCap));
+      }
+      const ix = capG.index!.array;
+      for (let t = 0; t < ix.length; t += 3) {
+        const us = [uv.getX(ix[t]), uv.getX(ix[t + 1]), uv.getX(ix[t + 2])];
+        if (Math.max(...us) - Math.min(...us) > 0.5) for (let j = 0; j < 3; j++) if (us[j] < 0.5) uv.setX(ix[t + j], us[j] + 1);
+      }
     }
     pb.addOwned('soot', capG, undefined, { uv: 'keep' });
-    // recessed exhaust grille on top: dark plate + grating bars
+    // stack top: sooty rim, recessed grating deck and three uptake pipes (2 main gas turbines + GTG)
     const grille = offsetPoly(capTop, 0.18);
-    P('black', prismBetween(grille, yTop, grille, yTop + 0.02, true, false));
-    // raised lip around the recessed top (0.3 m)
-    const lipO = offsetPoly(capTop, -0.02), lipI = offsetPoly(capTop, 0.16);
+    P('charcoal', prismBetween(grille, yTop - 0.25, grille, yTop - 0.2, true, false));
+    const lipO = offsetPoly(capTop, -0.03), lipI = offsetPoly(capTop, 0.16);
     for (let i = 0; i < lipO.length; i++) {
       const j = (i + 1) % lipO.length;
-      const seg = prismBetween([lipO[i], lipO[j], lipI[j], lipI[i]], yTop, [lipO[i], lipO[j], lipI[j], lipI[i]], yTop + 0.3, true, false);
-      P('black', seg);
+      const seg = prismBetween([lipO[i], lipO[j], lipI[j], lipI[i]], yTop - 0.25, [lipO[i], lipO[j], lipI[j], lipI[i]], yTop + 0.22, true, false);
+      P('charcoal', seg);
     }
     const tzc = zc + shift;
     let gx0 = Infinity, gx1 = -Infinity, gz0 = Infinity, gz1 = -Infinity;
     for (const [x, z] of grille) { gx0 = Math.min(gx0, x); gx1 = Math.max(gx1, x); gz0 = Math.min(gz0, z); gz1 = Math.max(gz1, z); }
-    for (let z = gz0 + 0.3; z < gz1 - 0.2; z += 0.35) P('darkSteel', box(gx1 - gx0 - 0.5, 0.08, 0.05), M((gx0 + gx1) / 2, yTop + 0.06, z));
-    P('darkSteel', box(0.08, 0.1, gz1 - gz0 - 0.3), M(0, yTop + 0.08, (gz0 + gz1) / 2));
+    // grating over the deck (between the pipes)
+    for (let z = gz0 + 0.25; z < gz1 - 0.15; z += 0.28) P('darkSteel', box(gx1 - gx0 - 0.5, 0.06, 0.035), M((gx0 + gx1) / 2, yTop - 0.12, z));
+    for (let x = gx0 + 0.35; x < gx1 - 0.2; x += 0.55) P('darkSteel', box(0.035, 0.08, gz1 - gz0 - 0.4), M(x, yTop - 0.13, (gz0 + gz1) / 2));
+    const uptake = (x: number, z: number, rOut: number, h: number) => {
+      const t = 0.07;
+      const prof = [[rOut + 0.04, -0.3], [rOut, -0.3], [rOut, h - 0.1], [rOut + 0.07, h - 0.06], [rOut + 0.07, h], [rOut - t, h], [rOut - t, 0.05], [0.001, 0.05]].map(([r, y]) => new THREE.Vector2(r, y));
+      const g = new THREE.LatheGeometry(prof, 24);
+      P('charcoal', g, M(x, yTop - 0.2, z));
+      // exhaust eductor ring + grid across the mouth
+      for (const d of [-0.5, 0, 0.5]) P('darkSteel', box(0.03, 0.05, rOut * 2 * Math.sqrt(1 - d * d) * 0.98), M(x + d * rOut, yTop - 0.2 + h - 0.12, z));
+    };
+    uptake(0.9, tzc + 1.4, 0.62, 0.62);
+    uptake(-0.9, tzc + 1.4, 0.62, 0.62);
+    uptake(0, tzc - 1.4, 0.72, 0.5);
+    // small GTG/boiler vent pipes
+    for (const [x, zz] of [[1.5, -1.9], [-1.5, -1.9], [1.6, 0.0]] as [number, number][]) P('charcoal', new THREE.CylinderGeometry(0.12, 0.12, 0.9, 10, 1, true), M(x, yTop + 0.2, tzc + zz));
     // exhaust emitters (effect empties) along the grille: 2 x main gas turbine + GTG uptakes
     const ex: V3[] = [[0.9, yTop + 0.1, tzc + 1.4], [-0.9, yTop + 0.1, tzc + 1.4], [0, yTop + 0.1, tzc - 1.4]];
     // small whip/sensor on funnel top edge
@@ -215,11 +244,17 @@ export function buildSuperstructure(pb: PartBuilder): SSAnchors {
   const hy0 = 4.7, hy1 = L.hangarRoof;
   const wellX = 3.8, wellZ0 = -24.6, wellZ1 = -35.8;
   const hangars: Block[] = [];
+  const hangarsUp: Block[] = [];
+  const HLEDGE = 8.3;
   for (const sx of [1, -1]) {
     const poly: V2[] = [[sx * wellX, hz0], [sx * 8.95, hz0], [sx * 9.25, -24.5], [sx * 9.3, hz1], [sx * wellX, hz1]];
-    const hb = new Block(poly, hy0, hy1, [0, 10, 9, 0, 0]);
+    // stepped side: lower wall to a ledge at HLEDGE, upper wall set in by 0.4 m (breaks up the long flat side)
+    const hb = new Block(poly, hy0, HLEDGE, [0, 10, 3, 0, 0]);
     P('paint', hb.geometry());
     hangars.push(hb);
+    const up = new Block(offsetPoly(hb.top, [0, 0, 0.4, 0, 0]), HLEDGE, hy1, [0, 10, 8, 0, 0]);
+    P('paint', up.geometry());
+    hangarsUp.push(up);
   }
   const vlsDeck = 8.75;
   P('paint', new Block([[wellX, hz0], [wellX, wellZ0], [-wellX, wellZ0], [-wellX, hz0]], hy0, vlsDeck, 0).geometry());
@@ -269,35 +304,46 @@ export function buildSuperstructure(pb: PartBuilder): SSAnchors {
     { e: 9 },
   ], 11, deckF);
   detailBlock(pb, tower1, [
-    { e: 1, doors: [0.3], louvers: [[0.85, 10.9]], lights: 1, boxes: 1, s0: 0.2, s1: 0.95 },
-    { e: 3, doors: [0.7], louvers: [[0.15, 10.9]], lights: 1, boxes: 1, s0: 0.05, s1: 0.8 },
+    { e: 1, doors: [0.3], louvers: [[0.85, 10.9]], lights: 1, boxes: 1, s0: 0.2, s1: 0.95, cables: 12.3, fire: [0.55] },
+    { e: 3, doors: [0.7], louvers: [[0.15, 10.9]], lights: 1, boxes: 1, s0: 0.05, s1: 0.8, cables: 12.3, fire: [0.45] },
     { e: 5, lights: 1 },
     { e: 0, drip: true }, { e: 4, drip: true },
   ], 12, L.lvl01);
   detailBlock(pb, tower2, [
-    { e: 0, doors: [0.25], louvers: [[0.55, 10.9]], lights: 1, boxes: 1, ladders: [0.9] },
-    { e: 4, doors: [0.75], louvers: [[0.45, 10.9]], lights: 1, boxes: 1, ladders: [0.1] },
+    { e: 0, doors: [0.25], louvers: [[0.55, 10.9]], lights: 1, boxes: 1, ladders: [0.9], cables: 13.6, s0: 0.05, s1: 0.8 },
+    { e: 4, doors: [0.75], louvers: [[0.45, 10.9]], lights: 1, boxes: 1, ladders: [0.1], cables: 13.6, s0: 0.2, s1: 0.95 },
     { e: 1 }, { e: 3 },
   ], 13, L.lvl01);
   detailBlock(pb, pilot, [{ e: 1, doors: [0.12], lights: 1 }, { e: 3, doors: [0.88], lights: 1 }], 14, L.lvl03);
   detailBlock(pb, lvl05, [{ e: 1, louvers: [[0.5, 19.2]] }, { e: 5, louvers: [[0.5, 19.2]] }, { e: 0 }, { e: 6 }, { e: 7 }, { e: 2 }, { e: 4 }], 15, L.bridgeRoof);
   detailBlock(pb, mid01, [
-    { e: 0, doors: [0.3, 0.75], louvers: [[0.52, 7.9]], lights: 2, boxes: 2, pipes: 9.4 },
-    { e: 2, doors: [0.25, 0.7], louvers: [[0.48, 7.9]], lights: 2, boxes: 2, pipes: 9.4 },
+    { e: 0, doors: [0.3, 0.75], louvers: [[0.52, 7.9]], lights: 2, boxes: 2, pipes: 9.4, fire: [0.1] },
+    { e: 2, doors: [0.25, 0.7], louvers: [[0.48, 7.9]], lights: 2, boxes: 2, pipes: 9.4, fire: [0.9] },
   ], 16, deckF);
   detailBlock(pb, aft01, [
-    { e: 1, doors: [0.2, 0.7], louvers: [[0.45, 7.9]], lights: 2, boxes: 2 },
-    { e: 3, doors: [0.3, 0.8], louvers: [[0.55, 7.9]], lights: 2, boxes: 2 },
+    { e: 1, doors: [0.2, 0.7], louvers: [[0.45, 7.9]], lights: 2, boxes: 2, cables: 9.2, fire: [0.9] },
+    { e: 3, doors: [0.3, 0.8], louvers: [[0.55, 7.9]], lights: 2, boxes: 2, cables: 9.2, fire: [0.1] },
     { e: 0 }, { e: 4 },
   ], 17, deckF);
   detailBlock(pb, aft02, [{ e: 1, doors: [0.4], louvers: [[0.75, 11.3]] }, { e: 3, doors: [0.6], louvers: [[0.25, 11.3]] }, { e: 0 }, { e: 4 }, { e: 5 }], 18, L.lvl01);
   detailBlock(pb, f02, [{ e: 0, louvers: [[0.5, 11.3]] }, { e: 4, louvers: [[0.5, 11.3]] }], 19, L.lvl01);
   hangars.forEach((hb, i) => {
     detailBlock(pb, hb, [
-      { e: 2, doors: i === 0 ? [0.2, 0.62] : [0.38, 0.8], louvers: [[i === 0 ? 0.4 : 0.6, 7.2]], lights: 3, boxes: 5, pipes: 10.6, ladders: [i === 0 ? 0.93 : 0.07] },
+      { e: 2, doors: i === 0 ? [0.2, 0.62] : [0.38, 0.8], louvers: [[i === 0 ? 0.4 : 0.6, 7.2]], lights: 3, boxes: 4, fire: [i === 0 ? 0.08 : 0.92, i === 0 ? 0.8 : 0.2], cables: 7.95 },
       { e: 1 }, { e: 0 },
       { e: 3, lights: 2, boxes: 2, s0: i === 0 ? 0.02 : 0.75, s1: i === 0 ? 0.25 : 0.98 },
     ], 20 + i, deckF);
+    detailBlock(pb, hangarsUp[i], [
+      { e: 2, louvers: [[i === 0 ? 0.3 : 0.7, 10.0], [i === 0 ? 0.52 : 0.48, 10.0]], pipes: 10.9, cables: 9.0, ladders: [i === 0 ? 0.93 : 0.07], boxes: 3 },
+      { e: 1 }, { e: 3, s0: i === 0 ? 0.02 : 0.75, s1: i === 0 ? 0.25 : 0.98 },
+    ], 30 + i, HLEDGE);
+    // raised access panels on the upper wall (bolted plates)
+    const up = hangarsUp[i];
+    for (const s of [0.16, 0.4, 0.66, 0.84]) {
+      const fm = up.faceFrame(2, s, up.hf(10.0), 0);
+      pb.add('paintFine', box(2.2, 1.5, 0.05), fm.clone().multiply(M(0, 0, 0.025)));
+      for (const [bx, by] of [[-1.0, -0.65], [1.0, -0.65], [-1.0, 0.65], [1.0, 0.65], [0, -0.65], [0, 0.65]] as [number, number][]) pb.add('darkSteel', cylZ(0.025, 0.025, 0.04, 6), fm.clone().multiply(M(bx, by, 0.06)));
+    }
   });
   // aft face center (between hangar doors) + CIWS house faces
   detailBlock(pb, ciwsH, [{ e: 1, louvers: [[0.5, 12.9]] }, { e: 5, louvers: [[0.5, 12.9]] }, { e: 3, lights: 1 }], 22, hy1);
@@ -376,7 +422,7 @@ export function buildSuperstructure(pb: PartBuilder): SSAnchors {
     { pos: [-7.6, L.lvl01, -19.6], outward: -1 },
   ];
   void deckAt;
-  return { ciwsFwd, illumFwd, illumAft, ciwsAft, mastBaseY: L.lvl05, funnels, decoyLaunchers, bridgeCam, arrays, hangarDoors, vlsAftDeckY: vlsDeck, blocks: { fwd01, tower1, tower2, pilot, lvl05, mid01, aft01, aft02 } };
+  return { ciwsFwd, illumFwd, illumAft, ciwsAft, mastBaseY: L.lvl05, funnels, decoyLaunchers, bridgeCam, arrays, hangarDoors, vlsAftDeckY: vlsDeck, blocks: { fwd01, tower1, tower2, pilot, lvl05, mid01, aft01, aft02, hangarUpP: hangarsUp[0], hangarUpS: hangarsUp[1] } };
   void louver; void lightFix; void jbox;
 }
 

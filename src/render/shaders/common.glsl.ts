@@ -72,6 +72,14 @@ vec3 skyBase(vec3 dir, vec3 up, float camAlt){
   return col;
 }
 
+// Optical depth of an exponential haze along a straight segment whose altitude varies ~linearly.
+float hazeSeg(float a, float b, float len){
+  float H = uHazeHeight;
+  float ea = exp(-max(a, 0.0) / H), eb = exp(-max(b, 0.0) / H);
+  float d = b - a;
+  return abs(d) < 1.0 ? len * 0.5 * (ea + eb) : len * H * (ea - eb) / d;
+}
+
 // Aerial perspective between camera and a world point.
 vec3 applyAtmosphere(vec3 color, vec3 wp){
   vec3 d = wp - uCamPosW;
@@ -81,13 +89,16 @@ vec3 applyAtmosphere(vec3 color, vec3 wp){
   float a0 = atmAlt(uCamPosW);
   float a1 = atmAlt(uCamPosW + d * 0.5);
   float a2 = atmAlt(wp);
-  float r0 = exp(-max(a0, 0.0) / uHazeHeight), r1 = exp(-max(a1, 0.0) / uHazeHeight), r2 = exp(-max(a2, 0.0) / uHazeHeight);
-  float tau = uHazeDensity * dist * (r0 + 4.0 * r1 + r2) / 6.0;
+  // two analytic halves: the midpoint captures the sphere's dip under long horizontal rays
+  float tau = uHazeDensity * (hazeSeg(a0, a1, dist * 0.5) + hazeSeg(a1, a2, dist * 0.5));
+  // keep the near field crisp (artistic): haze builds up mostly beyond a few km
+  tau *= mix(0.3, 1.0, smoothstep(300.0, 9000.0, dist));
   float T = exp(-tau);
   vec3 up = atmUp(uCamPosW);
-  // In-scattered light ~ sky near the horizon in this azimuth.
+  // In-scattered light ~ sky near the horizon in this azimuth; bluer when looking steeply down from altitude.
   vec3 hdir = normalize(dir - up * (dot(dir, up) - 0.02));
   vec3 ins = skyBase(hdir, up, 0.0);
+  ins = mix(ins, uSkyZenith * 1.4 + uSkyHorizon * 0.2, clamp(-dot(dir, up), 0.0, 1.0) * smoothstep(500.0, 20000.0, a0) * 0.7);
   return color * T + ins * (1.0 - T);
 }
 `;

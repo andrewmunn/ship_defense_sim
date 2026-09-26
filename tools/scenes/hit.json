@@ -1,0 +1,9 @@
+{ "url": "/?scenario=overwhelm&nointro&manual", "steps": [
+  {"wait": 600},
+  {"eval": "T.hideHud(); T.until(()=>game.world.stats.hits>0, 400, 0.05); game.advance(0.3); T.orbitShip(2.2, 0.15, 260, 45); T.pause(); JSON.stringify([game.world.t, game.world.ship.hp])"},
+  {"wait": 1200}, {"shot": "shots/c/30_hit.png"},
+  {"eval": "game.setPaused(false); game.advance(6); T.pause(); null"},
+  {"wait": 900}, {"shot": "shots/c/31_hit_after.png"},
+  {"eval": "game.setPaused(false); T.until(()=>game.world.ship.sinking || game.world.t>260, 200, 0.1); game.advance(20); T.orbitShip(2.6, 0.2, 380, 45); T.pause(); JSON.stringify([game.world.t, game.world.ship.hp, game.world.ship.sinking])"},
+  {"wait": 1200}, {"shot": "shots/c/32_burning.png"}
+]}

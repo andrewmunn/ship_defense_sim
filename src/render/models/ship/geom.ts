@@ -73,13 +73,16 @@ export interface AddOpts {
   keep?: string[];
 }
 
+/** Materials whose primitives keep their native (cylindrical/spherical) UVs by default. */
+const KEEP_UV = new Set(['radome']);
+
 /** Accumulates geometry per material key, then merges into one mesh per material. */
 export class PartBuilder {
   lists = new Map<string, THREE.BufferGeometry[]>();
   add(mat: string, g: THREE.BufferGeometry, m?: THREE.Matrix4, opts: AddOpts = {}) {
     const geo = normalizeGeo(g.clone(), opts.keep);
     if (m) geo.applyMatrix4(m);
-    if ((opts.uv ?? 'box') === 'box') boxUV(geo, opts.uvScale ?? 1 / 8);
+    if ((opts.uv ?? (KEEP_UV.has(mat) ? 'keep' : 'box')) === 'box') boxUV(geo, opts.uvScale ?? 1 / 8);
     let l = this.lists.get(mat);
     if (!l) this.lists.set(mat, (l = []));
     l.push(geo);
@@ -89,7 +92,7 @@ export class PartBuilder {
   addOwned(mat: string, g: THREE.BufferGeometry, m?: THREE.Matrix4, opts: AddOpts = {}) {
     const geo = normalizeGeo(g, opts.keep);
     if (m) geo.applyMatrix4(m);
-    if ((opts.uv ?? 'box') === 'box') boxUV(geo, opts.uvScale ?? 1 / 8);
+    if ((opts.uv ?? (KEEP_UV.has(mat) ? 'keep' : 'box')) === 'box') boxUV(geo, opts.uvScale ?? 1 / 8);
     let l = this.lists.get(mat);
     if (!l) this.lists.set(mat, (l = []));
     l.push(geo);

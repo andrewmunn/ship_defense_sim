@@ -1,6 +1,8 @@
 import * as THREE from 'three';
-import { INTERCEPTORS, InterceptorType, THREATS } from './specs';
-import { upAt } from '../core/geo';
+import { INTERCEPTORS, InterceptorType, THREATS, GUN_SPEC } from './specs';
+import { altitude, upAt } from '../core/geo';
+import { L, T, SPEED_OF_SOUND } from '../core/constants';
+import { flyoutTime } from './flyout';
 import type { Track } from './radar';
 import type { Interceptor } from './interceptor';
 import type { World } from './world';
@@ -28,10 +30,14 @@ export class Bastion {
   shots = 0;
   constructor(private world: World) {}
 
-  /** Predict intercept for weapon w against a track (straight-line threat extrapolation). */
+  /**
+   * Predict intercept for weapon w against a track (straight-line threat extrapolation), timing the
+   * interceptor's fly-out from its kinematic profile. Null if it can't get there with energy to spare.
+   */
   solve(w: InterceptorType, tr: Track): Solution | null {
     const spec = INTERCEPTORS[w];
     const ship = this.world.ship;
+    if (tr.range < spec.minRange) return null;
     upAt(ship.pos, _u);
     const launch = _p.copy(ship.pos).addScaledVector(_u, 12);
     let t = tr.range / (spec.avgSpeed + tr.estVel.length());
@@ -39,9 +45,10 @@ export class Bastion {
     for (let i = 0; i < 8; i++) {
       pip.copy(tr.estPos).addScaledVector(tr.estVel, t);
       const d = pip.distanceTo(launch);
-      // short shots don't reach average speed
-      const vavg = spec.avgSpeed * Math.min(1, 0.55 + d / 20000);
-      t = spec.verticalTime + 1.2 + d / vavg;
+      const elev = Math.asin(Math.min(1, Math.max(0, altitude(pip) - 12) / Math.max(d, 1)));
+      const fo = flyoutTime(w, d, elev);
+      if (!isFinite(fo.t)) return null;
+      t = fo.t;
     }
     const rangeAtInt = pip.distanceTo(ship.pos);
     if (rangeAtInt < spec.minRange || rangeAtInt > spec.maxRange) return null;
@@ -75,6 +82,7 @@ export class Bastion {
 
     const tracks = W.radar.activeTracks().filter((tr) => tr.cls === 'hostile' && t - tr.hostileTime >= W.cfg.doctrine.reaction * 0.5);
     tracks.sort((a, b) => a.ttg - b.ttg);
+    this.maneuver(tracks, t);
     for (const tr of tracks) {
       tr.engagedBy = tr.engagedBy.filter((m) => m.alive && m.result === 'pending');
       const inFlight = tr.engagedBy;
@@ -85,7 +93,7 @@ export class Bastion {
       if (1 - pSurvive >= need) continue;
       // Candidate weapons by preference
       const th = tr.threat.spec;
-      const fast = th.speed > 500;
+      const fast = th.speed > 1.5 * SPEED_OF_SOUND;
       const order: InterceptorType[] = fast ? ['glaive', 'halberd', 'stiletto'] : ['stiletto', 'halberd', 'glaive'];
       let sol: Solution | null = null;
       for (const w of order) {
@@ -93,7 +101,7 @@ export class Bastion {
         const s = this.solve(w, tr);
         if (!s) continue;
         // Don't waste long-range shots on far-away subsonic threats: prefer Stiletto envelope when it'll come
-        if (!fast && w === 'halberd' && s.rangeAtInt > 30000 && tr.ttg > 90) continue;
+        if (!fast && w === 'halberd' && s.rangeAtInt > L(30000) && tr.ttg > T(90)) continue;
         if (INTERCEPTORS[w].semiActive && !this.illumAvailable(t + s.tInt - INTERCEPTORS[w].terminalTime - 0.5, t + s.tInt + 0.5)) continue;
         sol = s;
         break;
@@ -103,9 +111,9 @@ export class Bastion {
       let n = 1;
       if (policy === 'salvo') n = 2;
       else if (policy === 'auto') {
-        const lookTime = sol.tInt + 2.5 + sol.tInt * 0.8;
+        const lookTime = sol.tInt + T(2.5) + sol.tInt * 0.8;
         const ttgAfter = tr.ttg - lookTime;
-        n = ttgAfter > 6 ? 1 : 2;
+        n = ttgAfter > T(6) ? 1 : 2;
         if (fast) n = 2;
       }
       n = Math.max(1, Math.min(n, 3 - inFlight.length));
@@ -118,7 +126,7 @@ export class Bastion {
     if (W.cfg.doctrine.gun && W.gun.enabled) {
       let best: Track | null = null;
       for (const tr of tracks) {
-        if (tr.range > 12000 || tr.range < 1600 || tr.ttg < 3) continue;
+        if (tr.range > GUN_SPEC.maxRange || tr.range < GUN_SPEC.minRange || tr.ttg < 3) continue;
         if (!best || tr.ttg < best.ttg) best = tr;
       }
       W.gunTarget = best ? best.threat : null;
@@ -127,16 +135,45 @@ export class Bastion {
     // Soft kill: Wisp / chaff against ASCMs that are homing
     if (W.cfg.doctrine.decoys) {
       for (const tr of tracks) {
-        if (tr.decoyed || tr.range > 17000 || tr.range < 2500) continue;
-        if (tr.threat.spec.terminal === 'dive' && tr.range > 9000) continue;
+        // time the launch so the decoys have bloomed as the threat's seeker comes on
+        const seeker = tr.threat.spec.seekerRange;
+        if (tr.decoyed || tr.range > seeker * 0.95 || tr.range < L(2500)) continue;
+        if (tr.threat.spec.terminal === 'dive' && tr.range > L(9000)) continue;
         const side = W.relativeSide(tr.estPos);
         const key = side > 0 ? 'port' : 'stbd';
         if (this.decoyCool[key] > 0) continue;
         if (W.launchDecoys(side, tr)) {
           tr.decoyed = true;
-          this.decoyCool[key] = 7;
+          this.decoyCool[key] = T(7);
         }
       }
+    }
+  }
+
+  private nextManeuver = 0;
+  /** Threat-axis maneuvering: flank speed, put the (weighted) threat bearing ~70° off the bow. */
+  private maneuver(tracks: Track[], t: number) {
+    const W = this.world;
+    if (W.cfg.doctrine.maneuver === false || !tracks.length || t < this.nextManeuver) return;
+    this.nextManeuver = t + 15;
+    const ship = W.ship;
+    ship.targetSpeed = Math.max(ship.targetSpeed, 30 * 0.514444);
+    // urgency-weighted mean threat bearing
+    let sx = 0, sy = 0;
+    for (const tr of tracks) {
+      const w = 1 / Math.max(tr.ttg, 5);
+      sx += Math.sin(tr.bearing) * w;
+      sy += Math.cos(tr.bearing) * w;
+    }
+    const axis = Math.atan2(sx, sy);
+    const off = 70 * (Math.PI / 180);
+    const wrap = (a: number) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+    const c1 = axis + off, c2 = axis - off;
+    const pick = Math.abs(wrap(c1 - ship.heading)) < Math.abs(wrap(c2 - ship.heading)) ? c1 : c2;
+    const newH = (pick + 2 * Math.PI) % (2 * Math.PI);
+    if (Math.abs(wrap(newH - ship.targetHeading)) > 10 * (Math.PI / 180)) {
+      ship.targetHeading = newH;
+      W.log(`Bastion: come to ${String(Math.round((newH * 180) / Math.PI)).padStart(3, '0')}°, flank speed — unmasking both mounts to threat axis ${String(Math.round((((axis * 180) / Math.PI) % 360 + 360) % 360)).padStart(3, '0')}°`, 'info');
     }
   }
 

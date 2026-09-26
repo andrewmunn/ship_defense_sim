@@ -3,7 +3,10 @@ import { Entity, quatFromVelocity, airDensity } from './entities';
 import type { Decoy } from './entities';
 import { THREATS, ThreatSpec, ThreatType } from './specs';
 import { altitude, upAt, surfaceDistance } from '../core/geo';
-import { GRAVITY } from '../core/constants';
+import { GRAVITY, L, V, T, gravityAt } from '../core/constants';
+
+/** Guidance gains are authored in 1/s at full scale; they speed up with the compressed timeline. */
+const K = 1 / T(1);
 import { rng } from '../core/rng';
 
 export type ThreatPhase = 'boost' | 'climb' | 'cruise' | 'descent' | 'terminal' | 'popup' | 'dive' | 'dead';
@@ -40,7 +43,7 @@ export class Threat extends Entity {
   cruiseAlt: number;
   prevPos = new THREE.Vector3();
   /** Max flight time before fuel exhaustion (s). */
-  fuelTime = 600;
+  fuelTime = T(600);
   waveIdx = 0;
   decoyRolls = 0;
   /** Ship-local aim offset (m), so hits spread along the hull. */
@@ -80,7 +83,10 @@ export class Threat extends Entity {
     upAt(this.pos, _u);
     const speed = this.vel.length();
     const acc = _a.set(0, 0, 0);
-    const maxA = s.maxG * GRAVITY * Math.min(1, (speed / 250) ** 2) * Math.min(1, airDensity(alt) / 0.4 + 0.3);
+    const g = gravityAt(alt);
+    /** Lift (+ any vertical thrust component) along local up, as a multiple of local gravity. */
+    let lift = 1;
+    const maxA = s.maxG * GRAVITY * Math.min(1, (speed / V(250)) ** 2) * Math.min(1, airDensity(alt) / 0.4 + 0.3);
 
     // Current aim: seeker lock if on, else route point
     let aim: THREE.Vector3 = this.route[Math.min(this.routeIdx, this.route.length - 1)] ?? this.aimPoint;
@@ -102,11 +108,11 @@ export class Threat extends Entity {
         if (rd > s.seekerRange * 1.1) continue;
         const ang = toD.normalize().angleTo(toS.normalize());
         // decoy must appear inside the seeker gate (range/angle) around the current lock
-        const gate = Math.abs(rd - rs) < 900;
+        const gate = Math.abs(rd - rs) < L(900);
         if (ang < 0.25 && gate && this.decoyRolls < 2 && this.lockTarget !== d && !d.userDataTried?.has(this.id)) {
           this.decoyRolls++;
           (d.userDataTried ??= new Set()).add(this.id);
-          const p = s.decoySusceptibility * Math.min(1.5, d.effectiveRcs() / targets.ship.rcs) * (rs > 3000 ? 1 : 0.4);
+          const p = s.decoySusceptibility * Math.min(1.5, d.effectiveRcs() / targets.ship.rcs) * (rs > L(3000) ? 1 : 0.4);
           if (rng.chance(p)) {
             this.lockTarget = d;
             this.seduced = true;
@@ -122,7 +128,7 @@ export class Threat extends Entity {
           this.seduced = false;
         } else {
           this.lockTarget = null;
-          this.fuelTime = Math.min(this.fuelTime, this.age + 20);
+          this.fuelTime = Math.min(this.fuelTime, this.age + T(20));
         }
       }
     }
@@ -138,10 +144,10 @@ export class Threat extends Entity {
       this.phase = s.terminal === 'dive' ? 'dive' : 'descent';
     }
     if (this.phase === 'descent' && Math.abs(alt - this.terminalAlt) < 5 && this.seekerOn) this.phase = 'terminal';
-    if (this.phase === 'terminal' && s.terminal === 'popup' && rangeToTgt < 4500 && !this.popupPeak) this.phase = 'popup';
+    if (this.phase === 'terminal' && s.terminal === 'popup' && rangeToTgt < L(4500) && !this.popupPeak) this.phase = 'popup';
 
     // Horizontal guidance direction
-    const aimPos = tgt ? tgt.pos : this.seekerOn ? this.pos.clone().addScaledVector(this.vel, 30) : aim;
+    const aimPos = tgt ? tgt.pos : this.seekerOn ? this.pos.clone().addScaledVector(this.vel, T(30)) : aim;
     const toAim = _h.copy(aimPos).sub(this.pos);
     // Lead the target (seeker) - proportional-ish: aim at predicted intercept
     if (tgt) {
@@ -149,7 +155,7 @@ export class Threat extends Entity {
       toAim.addScaledVector(tgt.vel, tgo);
     }
     // route waypoint advance
-    if (!tgt && this.routeIdx < this.route.length - 1 && surfaceDistance(this.pos, aim) < 3000) this.routeIdx++;
+    if (!tgt && this.routeIdx < this.route.length - 1 && surfaceDistance(this.pos, aim) < L(3000)) this.routeIdx++;
 
     const horiz = toAim.clone().addScaledVector(_u, -toAim.dot(_u));
     const hdist = horiz.length();
@@ -166,7 +172,7 @@ export class Threat extends Entity {
         // Boost along the launch direction with thrust; minimal steering
         const dir = _v.copy(this.vel).normalize();
         acc.addScaledVector(dir, s.boostAccel);
-        acc.addScaledVector(_u, GRAVITY * 0.4);
+        lift = 1.4; // pitched-up thrust + wing lift: climbs off the rail
         break;
       }
       case 'climb':
@@ -176,30 +182,30 @@ export class Threat extends Entity {
         if (this.phase === 'climb' && Math.abs(alt - this.cruiseAlt) < 30) this.phase = 'cruise';
         if (ground > 0 || groundAhead > 0) targetAlt = Math.max(targetAlt, ground + 60, groundAhead + 60);
         const desired = this.altitudeHoldDir(horiz, alt, targetAlt, speed, this.phase === 'descent' ? 0.35 : 0.5);
-        this.steer(desired, 1.6, maxA, acc);
+        this.steer(desired, 1.6 * K, maxA, acc);
         break;
       }
       case 'terminal': {
         targetAlt = ground > 0 ? Math.max(this.terminalAlt, ground + 30) : this.terminalAlt;
         targetSpeed = s.terminalSpeed;
         const desired = this.altitudeHoldDir(horiz, alt, targetAlt, speed, 0.25);
-        this.steer(desired, 2.4, maxA, acc);
-        if (s.terminal === 'weave' && rangeToTgt < 9000 && rangeToTgt > 700) {
+        this.steer(desired, 2.4 * K, maxA, acc);
+        if (s.terminal === 'weave' && rangeToTgt < L(9000) && rangeToTgt > L(700)) {
           const side = _v.crossVectors(_u, horiz).normalize();
-          const w = Math.sin(this.age * 2.1 + this.weavePhase) * this.weaveSign;
+          const w = Math.sin(this.age * 2.1 * K + this.weavePhase) * this.weaveSign;
           acc.addScaledVector(side, w * s.maxG * GRAVITY * 0.7);
         }
         break;
       }
       case 'popup': {
         targetSpeed = s.terminalSpeed;
-        if (!this.popupPeak && (alt > 180 || rangeToTgt < 2200)) this.popupPeak = true;
+        if (!this.popupPeak && (alt > L(180) || rangeToTgt < L(2200))) this.popupPeak = true;
         if (!this.popupPeak) {
           const desired = horiz.clone().multiplyScalar(Math.cos(0.5)).addScaledVector(_u, Math.sin(0.5)).normalize();
-          this.steer(desired, 2.0, maxA, acc);
+          this.steer(desired, 2.0 * K, maxA, acc);
         } else {
           const desired = toAim.clone().normalize();
-          this.steer(desired, 3.0, maxA, acc);
+          this.steer(desired, 3.0 * K, maxA, acc);
         }
         break;
       }
@@ -207,12 +213,12 @@ export class Threat extends Entity {
         targetSpeed = s.terminalSpeed;
         // Stay high until the dive angle to the target reaches ~ 40°, then dive with PN-ish pursuit.
         const ang = Math.atan2(alt, hdist);
-        if (ang < 0.6 && alt > 500) {
+        if (ang < 0.6 && alt > L(500)) {
           const desired = this.altitudeHoldDir(horiz, alt, this.cruiseAlt, speed, 0.5);
-          this.steer(desired, 1.4, maxA, acc);
+          this.steer(desired, 1.4 * K, maxA, acc);
         } else {
           const desired = toAim.clone().normalize();
-          this.steer(desired, 2.5, maxA, acc);
+          this.steer(desired, 2.5 * K, maxA, acc);
         }
         break;
       }
@@ -222,12 +228,16 @@ export class Threat extends Entity {
     if (this.phase !== 'boost') {
       const vdir = _v.copy(this.vel).normalize();
       const dv = targetSpeed - speed;
-      acc.addScaledVector(vdir, THREE.MathUtils.clamp(dv * 0.6, -25, 40));
-      if (this.phase === 'dive') acc.addScaledVector(_u, -GRAVITY * 0.5);
+      acc.addScaledVector(vdir, THREE.MathUtils.clamp(dv * 0.6 * K, -25, 40));
+      if (this.phase === 'dive') lift = 0.5;
     }
     // Fuel exhaustion: no more thrust or lift, it falls into the sea
-    if (this.age > this.fuelTime) acc.set(0, 0, 0).addScaledVector(_u, -GRAVITY).addScaledVector(this.vel, -0.02);
-    // Lift balances gravity except in boost (partial) and dive
+    if (this.age > this.fuelTime) {
+      acc.set(0, 0, 0).addScaledVector(this.vel, -0.02 * K);
+      lift = 0;
+    }
+    // Gravity (weaker with altitude); lift balances it in level flight, partially in the dive
+    acc.addScaledVector(_u, (lift - 1) * g);
     this.lastAccel.copy(acc);
     this.vel.addScaledVector(acc, dt);
     this.pos.addScaledVector(this.vel, dt);
@@ -242,8 +252,8 @@ export class Threat extends Entity {
     const err = targetAlt - alt;
     // Commanded climb rate with a braking profile, so the missile can flare out in time
     const aAvail = Math.max(15, this.spec.maxG * GRAVITY * 0.3);
-    const vz = Math.sign(err) * Math.min(Math.abs(err) * 0.3, Math.sqrt(2 * aAvail * Math.abs(err)) * 0.7);
-    const gamma = THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp(vz / Math.max(speed, 50), -1, 1)), -maxGamma, maxGamma);
+    const vz = Math.sign(err) * Math.min(Math.abs(err) * 0.3 * K, Math.sqrt(2 * aAvail * Math.abs(err)) * 0.7);
+    const gamma = THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp(vz / Math.max(speed, V(50)), -1, 1)), -maxGamma, maxGamma);
     return new THREE.Vector3().copy(horiz).multiplyScalar(Math.cos(gamma)).addScaledVector(_u, Math.sin(gamma)).normalize();
   }
 }

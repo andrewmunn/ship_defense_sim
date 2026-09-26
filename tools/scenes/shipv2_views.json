@@ -1,0 +1,108 @@
+{
+ "url": "/?scenario=mixedraid&nointro&manual",
+ "steps": [
+  {
+   "wait": 600
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(0,8,5,0.5,0.08,120,40); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/a_bowq.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(0,8,0,1.57,0.02,170,35); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/b_side.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(0,6,-20,2.7,0.25,110,40); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/c_sternq.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(0,17,22,0.6,0.15,30,45); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/d_bridge.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(0,6,55,0.9,0.12,38,45); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/e_bow.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(0,17,-6,1.9,0.25,38,45); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/f_funnels.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(0,8,-62,2.8,0.3,42,45); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/g_hangar.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(0,10,0,-1.0,0.2,75,40); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/h_mid.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(6,13,24,0.9,0.05,16,45); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/i_array.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(0,7,-66,-2.3,0.35,28,45); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/k_flight.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(0,4,40,-0.35,0.03,70,40); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/m_bowlow.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(0,11,-6,1.2,0.35,18,45); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/n_canisters.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(6.5,10.8,32.2,1.57,0.4,9,45); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/o_decoy.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(0,12,5,0.9,0.12,60,40); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/r_lit_mid.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(0,9,-40,1.25,0.15,42,42); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/s_lit_aft.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(4,16,20,0.75,0.1,26,45); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/t_lit_bridge.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(9,8,-40,1.57,0.1,28,45); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/p_hangarside.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.setPaused(false); F(0,6,-60,2.3,0.05,60,40); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/q_stern_low.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.atm.setState({timeOfDay:18.6}); game.setPaused(false); F(0,8,5,-0.6,0.08,110,40); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/j_sunset.png"
+  },
+  {
+   "eval": "window.V=game.world.ship.pos.constructor; window.F=(x,y,z,yr,p,d,fov=40)=>{const pt=new V(x,y,z).applyMatrix4(game.world.ship.localToWorld); T.orbit({pos:pt,vel:game.world.ship.vel,radius:5,alive:true,id:-1}, game.world.ship.heading+yr, p, d, fov);}; T.hideHud(); game.setAutoTime(false); game.atm.setState({timeOfDay:18.6}); game.setPaused(false); F(0,14,10,-1.1,0.12,50,45); game.advance(0.1); T.pause(); null",
+   "wait": 1400,
+   "shot": "shots/shipv2/after/l_sunset_close.png"
+  }
+ ]
+}

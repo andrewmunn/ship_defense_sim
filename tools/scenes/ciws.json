@@ -1,0 +1,9 @@
+{ "url": "/?scenario=saturationtot&nointro&manual", "steps": [
+  {"wait": 600},
+  {"eval": "T.hideHud(); T.until(()=>game.world.ciws.some(c=>c.firing), 400, 0.05); game.advance(0.35); const c=game.world.ciws.find(c=>c.firing); window.CI=game.world.ciws.indexOf(c); T.orbitShip(c.yaw + (CI? Math.PI:0) + 2.6, 0.12, 70, 50); game.rig.follow({pos:c.worldPos, vel:game.world.ship.vel, radius:3, alive:true, id:-5},{dist:70}); T.pause(); JSON.stringify([game.world.t, CI])"},
+  {"wait": 1200}, {"shot": "shots/c/20_ciws_side.png"},
+  {"eval": "game.setPaused(false); const {ciwsMount}=window; game.rig.setFixed({fov:50,get(p,l,u){const c=game.world.ciws[CI]; const up=c.worldPos.clone().sub(new c.worldPos.constructor(0,-1e6,0)).normalize(); p.copy(c.worldPos).addScaledVector(c.worldDir,-7).addScaledVector(up,2.2); l.copy(c.worldPos).addScaledVector(c.worldDir,120); u.copy(up); return true;}}); game.advance(0.3); T.pause(); null"},
+  {"wait": 1200}, {"shot": "shots/c/21_ciws_shoulder.png"},
+  {"eval": "game.setPaused(false); const th=game.world.threats.filter(t=>t.alive).sort((a,b)=>a.pos.distanceTo(game.world.ship.pos)-b.pos.distanceTo(game.world.ship.pos))[0]; T.orbitShip(0,0,1,50); game.rig.follow(game.world.ship,{dist:700}); game.rig.cut({focus:game.world.ship.pos.clone(), yaw: game.world.ship.heading+2.0, pitch:0.35, dist:700}); game.advance(0.2); T.pause(); null"},
+  {"wait": 1200}, {"shot": "shots/c/22_ciws_wide.png"}
+]}

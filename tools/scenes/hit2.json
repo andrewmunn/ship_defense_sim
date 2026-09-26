@@ -1,0 +1,7 @@
+{ "url": "/?scenario=overwhelm&nointro&manual", "steps": [
+  {"wait": 600},
+  {"eval": "T.hideHud(); const t0=performance.now(); T.until(()=>game.world.stats.hits>1, 400, 0.05); game.advance(25); T.orbitShip(1.7, 0.18, 150, 45); T.pause(); JSON.stringify([game.world.t, game.world.ship.hp, performance.now()-t0])"},
+  {"wait": 1500}, {"shot": "shots/c/33_scorch.png"},
+  {"eval": "T.orbitShip(-1.5, 0.18, 150, 45); null"},
+  {"wait": 1500}, {"shot": "shots/c/34_scorch2.png"}
+]}
